@@ -60,10 +60,11 @@ class VectorStore:
         self, repo_id: str, query_vector: list[float], limit: int = 6
     ) -> list[dict]:
         self.ensure_collection()
-        hits = self.client.search(
+        response = self.client.query_points(
             collection_name=self.collection,
-            query_vector=query_vector,
+            query=query_vector,
             limit=limit,
+            with_payload=True,
             query_filter=qmodels.Filter(
                 must=[
                     qmodels.FieldCondition(
@@ -80,7 +81,7 @@ class VectorStore:
                 "start_line": hit.payload.get("start_line"),
                 "end_line": hit.payload.get("end_line"),
             }
-            for hit in hits
+            for hit in response.points
         ]
 
     def delete_repo(self, repo_id: str) -> None:
