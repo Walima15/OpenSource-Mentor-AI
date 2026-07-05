@@ -5,12 +5,13 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
 from app.agents.graph import run_intent
-from app.agents.llm import LLMNotConfigured, get_llm
+from app.agents.llm import LLMNotConfigured, astream_completion
 from app.agents.state import AgentState
 from app.agents.tools.retriever import retrieve_context
 from app.api.deps import current_user, db_session, github_token
@@ -47,7 +48,9 @@ async def _base_state(
     state: AgentState = {
         "repo_full_name": repo.full_name,
         "repo_description": repo.description or "",
-        "retrieved_chunks": retrieve_context(str(repo.id), query),
+        "retrieved_chunks": await run_in_threadpool(
+            retrieve_context, str(repo.id), query
+        ),
     }
     if session.issue_number:
         gh = GitHubService(token=token)
@@ -139,7 +142,7 @@ async def _run_session_intent(
     state = await _base_state(db, repo, session, token, query)
     state["intent"] = intent  # type: ignore[typeddict-item]
     try:
-        return run_intent(state)
+        return await run_in_threadpool(run_intent, state)
     except LLMNotConfigured as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -238,7 +241,9 @@ async def chat(
     async def event_generator():
         chunks: list[str] = []
         try:
-            for delta in get_llm().stream(prompts.SYSTEM_BASE, prompt, max_tokens=1800):
+            async for delta in astream_completion(
+                prompts.SYSTEM_BASE, prompt, max_tokens=1800
+            ):
                 chunks.append(delta)
                 yield {"event": "delta", "data": delta}
         except LLMNotConfigured as exc:

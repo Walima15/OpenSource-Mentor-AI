@@ -6,6 +6,8 @@ configured, calls raise a clear error rather than failing deep in the stack.
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncIterator
 from functools import lru_cache
 
 from app.core.config import settings
@@ -76,3 +78,43 @@ class LLMClient:
 @lru_cache
 def get_llm() -> LLMClient:
     return LLMClient()
+
+
+async def astream_completion(
+    system: str,
+    prompt: str,
+    max_tokens: int = 2000,
+    temperature: float = 0.2,
+) -> AsyncIterator[str]:
+    """Async wrapper around ``LLMClient.stream``.
+
+    The Anthropic SDK's streaming API is synchronous and blocks the calling
+    thread between deltas. Driving it directly inside an async endpoint would
+    stall the whole event loop, so we run the blocking generator in a worker
+    thread and hand deltas back over an ``asyncio.Queue``.
+    """
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue = asyncio.Queue()
+    sentinel = object()
+    llm = get_llm()
+
+    def _produce() -> None:
+        try:
+            for delta in llm.stream(
+                system, prompt, max_tokens=max_tokens, temperature=temperature
+            ):
+                loop.call_soon_threadsafe(queue.put_nowait, delta)
+        except BaseException as exc:  # noqa: BLE001 - forwarded to consumer
+            loop.call_soon_threadsafe(queue.put_nowait, exc)
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, sentinel)
+
+    loop.run_in_executor(None, _produce)
+
+    while True:
+        item = await queue.get()
+        if item is sentinel:
+            break
+        if isinstance(item, BaseException):
+            raise item
+        yield item

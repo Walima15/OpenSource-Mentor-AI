@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from app.agents.graph import run_intent
@@ -93,11 +94,13 @@ async def suggest_code(
         "target_file": payload.file_path,
         "instruction": payload.instruction or "",
         "file_content": file_content or "",
-        "retrieved_chunks": retrieve_context(
-            str(repo.id), f"{payload.file_path} {payload.instruction or ''}"
+        "retrieved_chunks": await run_in_threadpool(
+            retrieve_context,
+            str(repo.id),
+            f"{payload.file_path} {payload.instruction or ''}",
         ),
     }
-    result = _run(state)
+    result = await run_in_threadpool(_run, state)
     suggestion = CodeSuggestion(
         plan_id=plan.id,
         file_path=payload.file_path,
