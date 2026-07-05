@@ -64,6 +64,12 @@ Two services in a single monorepo communicating over HTTP.
   tests, write PR). Each capability is an independently testable node.
 - **Retrieval**: Repositories are chunked, embedded, and upserted to Qdrant so
   agents can ground their answers in the actual codebase.
+- **Opportunity matching**: Tracked repositories are scanned for
+  beginner-friendly issues (`good first issue`, `help wanted`, bugs) which are
+  mirrored into an issue cache and ranked against the contributor's per-language
+  skills, producing an explainable, scored list of recommended issues. Scanning
+  runs on demand from the dashboard and, when `REDIS_URL` is set, continuously
+  via an hourly Arq cron in the worker.
 - **Pull requests**: OSMA can open a real PR on GitHub. It forks the upstream
   repo (when needed), creates a branch, applies the AI code suggestions, and
   opens the pull request against the base branch.
