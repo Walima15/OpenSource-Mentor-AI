@@ -1,0 +1,52 @@
+# Render blueprint for the OSMA backend (FastAPI).
+# Deploys the API from the service Dockerfile. Ingestion runs in-process via
+# FastAPI BackgroundTasks (no Redis/worker needed for this tier).
+#
+# Secrets (sync: false) must be set in the Render dashboard or via `render`.
+services:
+  - type: web
+    name: osma-agent-api
+    runtime: docker
+    repo: https://github.com/Walima15/OpenSource-Mentor-AI
+    branch: main
+    dockerfilePath: ./services/agent-api/Dockerfile
+    dockerContext: ./services/agent-api
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: ANTHROPIC_MODEL
+        value: claude-3-5-sonnet-latest
+      - key: QDRANT_COLLECTION
+        value: osma_repo_chunks
+      - key: EMBEDDING_PROVIDER
+        value: fastembed
+      - key: EMBEDDING_MODEL
+        value: BAAI/bge-small-en-v1.5
+      - key: EMBEDDING_DIM
+        value: "384"
+      # --- Secrets: set these in the Render dashboard ---
+      - key: DATABASE_URL          # Supabase session pooler connection string
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: QDRANT_URL            # Qdrant Cloud cluster URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: CORS_ORIGINS          # your Vercel domain, e.g. https://osma.vercel.app
+        sync: false

@@ -4,9 +4,15 @@ import { createClient } from "@/lib/supabase/server";
 // Exchanges the OAuth code for a session, then captures the GitHub provider
 // token and persists it (encrypted) on the backend for server-side API calls.
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const url = new URL(request.url);
+  const searchParams = url.searchParams;
   const code = searchParams.get("code");
   const redirect = searchParams.get("redirect") ?? "/dashboard";
+
+  // Behind Docker, request.url resolves to the container's internal host
+  // (0.0.0.0:3000). Use the configured public site URL for browser redirects,
+  // falling back to the request origin for local `next dev`.
+  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? url.origin;
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`);
