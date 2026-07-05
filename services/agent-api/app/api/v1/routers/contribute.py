@@ -109,7 +109,9 @@ async def suggest_code(
     return CodeSuggestionOut.model_validate(suggestion)
 
 
-@router.post("/{plan_id}/suggest-tests", response_model=AgentTextOut)
+@router.post(
+    "/{plan_id}/suggestions/{suggestion_id}/tests", response_model=AgentTextOut
+)
 def suggest_tests(
     plan_id: uuid.UUID,
     suggestion_id: uuid.UUID,
@@ -134,7 +136,9 @@ def suggest_tests(
     return AgentTextOut(content=result.get("output", ""))
 
 
-@router.post("/{plan_id}/explain-change", response_model=AgentTextOut)
+@router.post(
+    "/{plan_id}/suggestions/{suggestion_id}/explain", response_model=AgentTextOut
+)
 def explain_change(
     plan_id: uuid.UUID,
     suggestion_id: uuid.UUID,

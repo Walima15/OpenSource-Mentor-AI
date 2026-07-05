@@ -145,6 +145,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ file_path, instruction }),
     }),
+  suggestTests: (planId: string, suggestionId: string) =>
+    request<{ content: string }>(
+      `/contribute/${planId}/suggestions/${suggestionId}/tests`,
+      { method: "POST" },
+    ),
+  explainChange: (planId: string, suggestionId: string) =>
+    request<{ content: string }>(
+      `/contribute/${planId}/suggestions/${suggestionId}/explain`,
+      { method: "POST" },
+    ),
 
   // Pull request
   commitMessage: (planId: string) =>
