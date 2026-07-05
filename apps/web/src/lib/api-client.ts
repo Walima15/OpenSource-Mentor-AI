@@ -8,7 +8,9 @@ import type {
   Profile,
   PullRequestDraft,
   PullRequestResult,
+  Recommendation,
   RepoSearchResult,
+  ScanResult,
   Skill,
   TrackedRepo,
 } from "@/types";
@@ -108,6 +110,12 @@ export const api = {
     ),
   getIssue: (repoId: string, number: number) =>
     request<Issue>(`/repos/${repoId}/issues/${number}`),
+
+  // Recommendations (issue-to-skill matching)
+  getRecommendations: (limit = 20) =>
+    request<Recommendation[]>(`/recommendations?limit=${limit}`),
+  scanRecommendations: () =>
+    request<ScanResult>("/recommendations/scan", { method: "POST" }),
 
   // Mentor
   createSession: (data: {

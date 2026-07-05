@@ -57,6 +57,24 @@ export interface Issue {
   created_at: string;
 }
 
+export interface Recommendation {
+  repo_id: string;
+  repo_full_name: string;
+  issue_number: number;
+  title: string;
+  url: string;
+  labels: string[];
+  comments: number;
+  language: string | null;
+  score: number;
+  reasons: string[];
+}
+
+export interface ScanResult {
+  scanned_repos: number;
+  cached_issues: number;
+}
+
 export interface MentorSession {
   id: string;
   repo_id: string;

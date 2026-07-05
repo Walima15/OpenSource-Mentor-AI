@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 const NAV = [
   { href: "/dashboard", label: "Overview", icon: "M3 12l9-9 9 9M5 10v10h14V10" },
   { href: "/dashboard/repos", label: "Repositories", icon: "M4 4h16v16H4z M4 9h16" },
+  { href: "/dashboard/recommendations", label: "Recommendations", icon: "M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z" },
   { href: "/dashboard/sessions", label: "Mentor sessions", icon: "M4 5h16v10H7l-3 3z" },
   { href: "/dashboard/profile", label: "Profile", icon: "M12 12a4 4 0 100-8 4 4 0 000 8z M4 20a8 8 0 0116 0" },
 ];
