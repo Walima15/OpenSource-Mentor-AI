@@ -8,7 +8,7 @@ store both the vectors (Qdrant) and a metadata mirror (Postgres).
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
@@ -122,7 +122,7 @@ async def ingest_repository(db: Session, repo: TrackedRepo, token: str | None) -
                 )
 
         repo.index_status = IndexStatus.ready
-        repo.last_indexed_at = datetime.now(timezone.utc)
+        repo.last_indexed_at = datetime.now(UTC)
         db.commit()
         logger.info("Indexed %s with %d chunks", repo.full_name, len(all_chunks))
         return len(all_chunks)

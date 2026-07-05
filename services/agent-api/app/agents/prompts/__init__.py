@@ -14,7 +14,10 @@ def with_context(retrieved: list[dict] | None) -> str:
         return "No indexed code context was available."
     blocks = []
     for chunk in retrieved:
-        header = f"# {chunk.get('file_path')} (lines {chunk.get('start_line')}-{chunk.get('end_line')})"
+        header = (
+            f"# {chunk.get('file_path')} "
+            f"(lines {chunk.get('start_line')}-{chunk.get('end_line')})"
+        )
         blocks.append(f"{header}\n{chunk.get('content', '')}")
     return "\n\n".join(blocks)
 
