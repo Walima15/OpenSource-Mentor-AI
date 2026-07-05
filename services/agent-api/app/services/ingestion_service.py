@@ -7,8 +7,9 @@ store both the vectors (Qdrant) and a metadata mirror (Postgres).
 
 from __future__ import annotations
 
+import asyncio
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
@@ -16,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.core.logging import get_logger
 from app.db.models import IndexStatus, RepoIndexChunk, TrackedRepo
 from app.services.embedding_service import get_embedding_service
-from app.services.github_service import GitHubService
+from app.services.github_service import GitHubError, GitHubService
 from app.services.vector_store import get_vector_store
 
 logger = get_logger(__name__)
@@ -33,6 +34,8 @@ MAX_FILES = 120
 MAX_FILE_BYTES = 80_000
 CHUNK_LINES = 60
 CHUNK_OVERLAP = 10
+# How many file downloads to run concurrently against the GitHub API.
+FETCH_CONCURRENCY = 8
 
 
 def _is_indexable(path: str, size: int | None) -> bool:
@@ -66,6 +69,30 @@ def _chunk_file(path: str, content: str) -> list[dict]:
     return chunks
 
 
+async def _fetch_files(
+    gh: GitHubService, repo: TrackedRepo, paths: list[str]
+) -> list[tuple[str, str | None]]:
+    """Fetch file contents concurrently, bounded by ``FETCH_CONCURRENCY``.
+
+    Results preserve the input order; a failed/empty fetch yields ``None`` for
+    that path instead of aborting the whole ingestion.
+    """
+    semaphore = asyncio.Semaphore(FETCH_CONCURRENCY)
+
+    async def _one(path: str) -> tuple[str, str | None]:
+        async with semaphore:
+            try:
+                content = await gh.get_file_content(
+                    repo.owner, repo.name, path, repo.default_branch
+                )
+            except GitHubError:
+                logger.warning("Skipping %s: fetch failed", path, exc_info=True)
+                return path, None
+        return path, content
+
+    return await asyncio.gather(*(_one(p) for p in paths))
+
+
 async def ingest_repository(db: Session, repo: TrackedRepo, token: str | None) -> int:
     """Index a repository. Returns the number of chunks indexed."""
     gh = GitHubService(token=token)
@@ -76,19 +103,21 @@ async def ingest_repository(db: Session, repo: TrackedRepo, token: str | None) -
     db.commit()
 
     try:
-        tree, _ = await gh.get_tree(repo.owner, repo.name, repo.default_branch)
-        files = [
-            n for n in tree if n["type"] == "file" and _is_indexable(n["path"], n.get("size"))
-        ][:MAX_FILES]
+        async with gh:
+            tree, _ = await gh.get_tree(repo.owner, repo.name, repo.default_branch)
+            files = [
+                n
+                for n in tree
+                if n["type"] == "file" and _is_indexable(n["path"], n.get("size"))
+            ][:MAX_FILES]
+
+            contents = await _fetch_files(gh, repo, [n["path"] for n in files])
 
         all_chunks: list[dict] = []
-        for node in files:
-            content = await gh.get_file_content(
-                repo.owner, repo.name, node["path"], repo.default_branch
-            )
+        for path, content in contents:
             if not content:
                 continue
-            all_chunks.extend(_chunk_file(node["path"], content))
+            all_chunks.extend(_chunk_file(path, content))
 
         # Clear any previous index for this repo.
         store.delete_repo(str(repo.id))
@@ -122,7 +151,7 @@ async def ingest_repository(db: Session, repo: TrackedRepo, token: str | None) -
                 )
 
         repo.index_status = IndexStatus.ready
-        repo.last_indexed_at = datetime.now(timezone.utc)
+        repo.last_indexed_at = datetime.now(UTC)
         db.commit()
         logger.info("Indexed %s with %d chunks", repo.full_name, len(all_chunks))
         return len(all_chunks)
