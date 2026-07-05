@@ -58,10 +58,10 @@ async def scan_repo_issues(
 ) -> int:
     """Fetch beginner-friendly issues for a repo and cache them. Returns count."""
     seen: dict[int, dict] = {}
-    async with GitHubService(token=token) as gh:
-        for label in GOOD_FIRST_LABELS:
-            for issue in await gh.list_issues(repo.owner, repo.name, labels=[label]):
-                seen[issue["number"]] = issue
+    gh = GitHubService(token=token)
+    for label in GOOD_FIRST_LABELS:
+        for issue in await gh.list_issues(repo.owner, repo.name, labels=[label]):
+            seen[issue["number"]] = issue
 
     for issue in seen.values():
         _upsert_issue(db, repo.id, issue)
