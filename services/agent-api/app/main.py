@@ -15,6 +15,7 @@ from app.api.v1.routers import (
     mentor,
     pr,
     profile,
+    recommendations,
     repos,
 )
 from app.core.config import settings
@@ -59,6 +60,7 @@ def create_app() -> FastAPI:
     app.include_router(profile.router, prefix=api_prefix)
     app.include_router(repos.router, prefix=api_prefix)
     app.include_router(issues.router, prefix=api_prefix)
+    app.include_router(recommendations.router, prefix=api_prefix)
     app.include_router(mentor.router, prefix=api_prefix)
     app.include_router(contribute.router, prefix=api_prefix)
     app.include_router(pr.router, prefix=api_prefix)

@@ -116,6 +116,27 @@ class IssueOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Recommendations (issue-to-skill matching)
+# ---------------------------------------------------------------------------
+class RecommendationOut(BaseModel):
+    repo_id: uuid.UUID
+    repo_full_name: str
+    issue_number: int
+    title: str
+    url: str
+    labels: list[str]
+    comments: int
+    language: str | None = None
+    score: float
+    reasons: list[str]
+
+
+class ScanResultOut(BaseModel):
+    scanned_repos: int
+    cached_issues: int
+
+
+# ---------------------------------------------------------------------------
 # Mentor sessions / messages
 # ---------------------------------------------------------------------------
 class MentorSessionCreate(BaseModel):
