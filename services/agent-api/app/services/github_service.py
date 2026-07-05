@@ -8,9 +8,16 @@ fallback PAT is used to get a higher unauthenticated rate limit.
 from __future__ import annotations
 
 import base64
+from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -30,9 +37,26 @@ class GitHubError(Exception):
         super().__init__(f"GitHub API error {status_code}: {message}")
 
 
+class _RetryableGitHubError(GitHubError):
+    """Internal marker for transient (5xx) GitHub responses worth retrying."""
+
+
 class GitHubService:
+    """Async GitHub REST client.
+
+    Use it as an async context manager to reuse a single pooled connection
+    across many calls (e.g. during ingestion)::
+
+        async with GitHubService(token) as gh:
+            await gh.get_tree(...)
+
+    When used without ``async with``, each request opens (and closes) its own
+    short-lived client, preserving backward compatibility.
+    """
+
     def __init__(self, token: str | None = None):
         self.token = token or settings.github_fallback_token or None
+        self._client: httpx.AsyncClient | None = None
 
     def _headers(self) -> dict[str, str]:
         headers = {
@@ -43,26 +67,51 @@ class GitHubService:
             headers["Authorization"] = f"Bearer {self.token}"
         return headers
 
-    async def _get(self, client: httpx.AsyncClient, path: str, **params) -> Any:
-        resp = await client.get(
-            f"{GITHUB_API}{path}", headers=self._headers(), params=params or None
-        )
+    async def __aenter__(self) -> GitHubService:
+        self._client = httpx.AsyncClient(timeout=30, headers=self._headers())
+        return self
+
+    async def __aexit__(self, *_exc) -> None:
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
+
+    @asynccontextmanager
+    async def _acquire(self):
+        """Yield a client: the shared one when in a context, else a temporary."""
+        if self._client is not None:
+            yield self._client
+        else:
+            async with httpx.AsyncClient(
+                timeout=30, headers=self._headers()
+            ) as client:
+                yield client
+
+    @retry(
+        retry=retry_if_exception_type((httpx.TransportError, _RetryableGitHubError)),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=0.5, max=8),
+        reraise=True,
+    )
+    async def _get(self, path: str, **params) -> Any:
+        async with self._acquire() as client:
+            resp = await client.get(f"{GITHUB_API}{path}", params=params or None)
         if resp.status_code == 403 and "rate limit" in resp.text.lower():
             raise GitHubError(403, "GitHub rate limit exceeded. Try again later.")
+        if resp.status_code >= 500:
+            raise _RetryableGitHubError(resp.status_code, resp.text[:300])
         if resp.status_code >= 400:
             raise GitHubError(resp.status_code, resp.text[:300])
         return resp.json()
 
     async def search_repositories(self, query: str, limit: int = 20) -> list[dict]:
-        async with httpx.AsyncClient(timeout=20) as client:
-            data = await self._get(
-                client,
-                "/search/repositories",
-                q=query,
-                sort="stars",
-                order="desc",
-                per_page=limit,
-            )
+        data = await self._get(
+            "/search/repositories",
+            q=query,
+            sort="stars",
+            order="desc",
+            per_page=limit,
+        )
         results = []
         for item in data.get("items", []):
             results.append(
@@ -79,19 +128,16 @@ class GitHubService:
         return results
 
     async def get_repo(self, owner: str, name: str) -> dict:
-        async with httpx.AsyncClient(timeout=20) as client:
-            return await self._get(client, f"/repos/{owner}/{name}")
+        return await self._get(f"/repos/{owner}/{name}")
 
     async def get_tree(
         self, owner: str, name: str, branch: str
     ) -> tuple[list[dict], bool]:
         """Return the recursive tree and whether GitHub truncated it."""
-        async with httpx.AsyncClient(timeout=30) as client:
-            data = await self._get(
-                client,
-                f"/repos/{owner}/{name}/git/trees/{branch}",
-                recursive="1",
-            )
+        data = await self._get(
+            f"/repos/{owner}/{name}/git/trees/{branch}",
+            recursive="1",
+        )
         nodes = [
             {
                 "path": n["path"],
@@ -105,15 +151,12 @@ class GitHubService:
     async def get_file_content(
         self, owner: str, name: str, path: str, ref: str | None = None
     ) -> str | None:
-        async with httpx.AsyncClient(timeout=20) as client:
-            try:
-                data = await self._get(
-                    client, f"/repos/{owner}/{name}/contents/{path}", ref=ref
-                )
-            except GitHubError as exc:
-                if exc.status_code == 404:
-                    return None
-                raise
+        try:
+            data = await self._get(f"/repos/{owner}/{name}/contents/{path}", ref=ref)
+        except GitHubError as exc:
+            if exc.status_code == 404:
+                return None
+            raise
         if isinstance(data, list):  # directory
             return None
         if data.get("encoding") == "base64" and data.get("content"):
@@ -144,10 +187,7 @@ class GitHubService:
         params: dict[str, Any] = {"state": state, "per_page": limit}
         if labels:
             params["labels"] = ",".join(labels)
-        async with httpx.AsyncClient(timeout=20) as client:
-            data = await self._get(
-                client, f"/repos/{owner}/{name}/issues", **params
-            )
+        data = await self._get(f"/repos/{owner}/{name}/issues", **params)
         issues = []
         for item in data:
             if "pull_request" in item:  # exclude PRs
@@ -156,23 +196,19 @@ class GitHubService:
         return issues
 
     async def get_issue(self, owner: str, name: str, number: int) -> dict:
-        async with httpx.AsyncClient(timeout=20) as client:
-            item = await self._get(client, f"/repos/{owner}/{name}/issues/{number}")
+        item = await self._get(f"/repos/{owner}/{name}/issues/{number}")
         return _format_issue(item)
 
     # -----------------------------------------------------------------------
     # Write operations (require a user token with the `repo` scope)
+    #
+    # Writes are intentionally NOT retried: most are non-idempotent (fork,
+    # create branch, put file, open PR) so a blind retry after a network error
+    # could duplicate side effects.
     # -----------------------------------------------------------------------
-    async def _send(
-        self,
-        client: httpx.AsyncClient,
-        method: str,
-        path: str,
-        json: dict | None = None,
-    ) -> Any:
-        resp = await client.request(
-            method, f"{GITHUB_API}{path}", headers=self._headers(), json=json
-        )
+    async def _send(self, method: str, path: str, json: dict | None = None) -> Any:
+        async with self._acquire() as client:
+            resp = await client.request(method, f"{GITHUB_API}{path}", json=json)
         if resp.status_code == 403 and "rate limit" in resp.text.lower():
             raise GitHubError(403, "GitHub rate limit exceeded. Try again later.")
         if resp.status_code >= 400:
@@ -180,36 +216,29 @@ class GitHubService:
         return resp.json() if resp.content else {}
 
     async def get_authenticated_user(self) -> dict:
-        async with httpx.AsyncClient(timeout=20) as client:
-            return await self._get(client, "/user")
+        return await self._get("/user")
 
     async def fork_repo(self, owner: str, name: str) -> dict:
         """Create (or return existing) fork under the authenticated user."""
-        async with httpx.AsyncClient(timeout=30) as client:
-            return await self._send(client, "POST", f"/repos/{owner}/{name}/forks")
+        return await self._send("POST", f"/repos/{owner}/{name}/forks")
 
     async def get_branch_sha(self, owner: str, name: str, branch: str) -> str:
-        async with httpx.AsyncClient(timeout=20) as client:
-            data = await self._get(
-                client, f"/repos/{owner}/{name}/git/ref/heads/{branch}"
-            )
+        data = await self._get(f"/repos/{owner}/{name}/git/ref/heads/{branch}")
         return data["object"]["sha"]
 
     async def create_branch(
         self, owner: str, name: str, new_branch: str, base_sha: str
     ) -> None:
-        async with httpx.AsyncClient(timeout=20) as client:
-            try:
-                await self._send(
-                    client,
-                    "POST",
-                    f"/repos/{owner}/{name}/git/refs",
-                    {"ref": f"refs/heads/{new_branch}", "sha": base_sha},
-                )
-            except GitHubError as exc:
-                # 422 = ref already exists; treat as idempotent.
-                if exc.status_code != 422:
-                    raise
+        try:
+            await self._send(
+                "POST",
+                f"/repos/{owner}/{name}/git/refs",
+                {"ref": f"refs/heads/{new_branch}", "sha": base_sha},
+            )
+        except GitHubError as exc:
+            # 422 = ref already exists; treat as idempotent.
+            if exc.status_code != 422:
+                raise
 
     async def put_file(
         self,
@@ -228,23 +257,21 @@ class GitHubService:
         }
         if sha:
             payload["sha"] = sha
-        async with httpx.AsyncClient(timeout=30) as client:
-            return await self._send(
-                client, "PUT", f"/repos/{owner}/{name}/contents/{path}", payload
-            )
+        return await self._send(
+            "PUT", f"/repos/{owner}/{name}/contents/{path}", payload
+        )
 
     async def get_content_sha(
         self, owner: str, name: str, path: str, branch: str
     ) -> str | None:
-        async with httpx.AsyncClient(timeout=20) as client:
-            try:
-                data = await self._get(
-                    client, f"/repos/{owner}/{name}/contents/{path}", ref=branch
-                )
-            except GitHubError as exc:
-                if exc.status_code == 404:
-                    return None
-                raise
+        try:
+            data = await self._get(
+                f"/repos/{owner}/{name}/contents/{path}", ref=branch
+            )
+        except GitHubError as exc:
+            if exc.status_code == 404:
+                return None
+            raise
         if isinstance(data, dict):
             return data.get("sha")
         return None
@@ -259,20 +286,18 @@ class GitHubService:
         body: str,
         draft: bool = False,
     ) -> dict:
-        async with httpx.AsyncClient(timeout=30) as client:
-            return await self._send(
-                client,
-                "POST",
-                f"/repos/{owner}/{name}/pulls",
-                {
-                    "title": title,
-                    "head": head,
-                    "base": base,
-                    "body": body,
-                    "draft": draft,
-                    "maintainer_can_modify": True,
-                },
-            )
+        return await self._send(
+            "POST",
+            f"/repos/{owner}/{name}/pulls",
+            {
+                "title": title,
+                "head": head,
+                "base": base,
+                "body": body,
+                "draft": draft,
+                "maintainer_can_modify": True,
+            },
+        )
 
 
 def _format_issue(item: dict) -> dict:
