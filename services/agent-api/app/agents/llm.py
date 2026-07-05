@@ -8,6 +8,13 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
 from app.core.config import settings
 from app.core.logging import get_logger
 
@@ -16,6 +23,24 @@ logger = get_logger(__name__)
 
 class LLMNotConfigured(RuntimeError):
     pass
+
+
+def _transient_llm_errors() -> tuple[type[BaseException], ...]:
+    """Anthropic exception types worth retrying, resolved lazily.
+
+    Importing ``anthropic`` at module load is avoided so the app still boots
+    without the optional dependency; if it is missing we simply do not retry.
+    """
+    try:
+        import anthropic
+    except Exception:  # noqa: BLE001
+        return ()
+    return (
+        anthropic.APIConnectionError,
+        anthropic.APITimeoutError,
+        anthropic.RateLimitError,
+        anthropic.InternalServerError,
+    )
 
 
 class LLMClient:
@@ -35,6 +60,12 @@ class LLMClient:
         self._client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
         return self._client
 
+    @retry(
+        retry=retry_if_exception_type(_transient_llm_errors()),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, max=10),
+        reraise=True,
+    )
     def complete(
         self,
         system: str,
