@@ -30,9 +30,27 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = Field(default="")
     supabase_jwt_secret: str = Field(default="")
 
+    # LLM provider: "anthropic" | "together" | "openai"
+    # Use "together" to run the fine-tuned OSMA Mentor model.
+    llm_provider: str = Field(default="anthropic")
+
     # Anthropic
     anthropic_api_key: str = Field(default="")
     anthropic_model: str = Field(default="claude-3-5-sonnet-latest")
+
+    # Together.ai (hosted open-source models + fine-tuning)
+    together_api_key: str = Field(default="")
+    # Inference model: set this to your fine-tuned model id after training,
+    # e.g. "yourname/Meta-Llama-3.1-8B-Instruct-osma-mentor-xxxx".
+    together_model: str = Field(default="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo")
+    # Base model used as the starting point for fine-tuning.
+    together_base_model: str = Field(
+        default="meta-llama/Meta-Llama-3.1-8B-Instruct-Reference"
+    )
+
+    # OpenAI (optional: teacher model for distillation, or OpenAI inference)
+    openai_api_key: str = Field(default="")
+    openai_model: str = Field(default="gpt-4o-mini")
 
     # GitHub
     github_client_id: str = Field(default="")

@@ -102,7 +102,8 @@ See each service's directory for more detail.
 | Auth             | Supabase Auth (GitHub OAuth)                |
 | Backend          | FastAPI (Python 3.11+)                       |
 | Agent framework  | LangGraph                                   |
-| LLM              | Anthropic Claude (swappable via env)        |
+| LLM              | Anthropic Claude / Together / OpenAI (via `LLM_PROVIDER`) |
+| Custom model     | Fine-tune an OSMA Mentor model (Together.ai) - see `services/agent-api/finetune/` |
 | Database         | PostgreSQL (Supabase)                       |
 | Vector DB        | Qdrant                                      |
 | Embeddings       | fastembed (local, configurable)             |
@@ -205,6 +206,22 @@ cd apps/web
 npm install
 npm run dev
 ```
+
+## Custom "OSMA Mentor" model (fine-tuning)
+
+The agent is provider-agnostic (`LLM_PROVIDER` = `anthropic` | `together` |
+`openai`). You can fine-tune an open-source model into a custom OSMA Mentor model
+on Together.ai and serve it with zero changes to the agent graph:
+
+```bash
+cd services/agent-api
+python -m finetune.build_dataset          # seed dataset (no keys needed)
+python -m finetune.distill --teacher anthropic   # optional: scale with a teacher
+python -m finetune.finetune_together --wait       # LoRA fine-tune on Together
+# then set LLM_PROVIDER=together and TOGETHER_MODEL=<output> and restart the API
+```
+
+See [services/agent-api/finetune/README.md](services/agent-api/finetune/README.md).
 
 ## Development roadmap
 
