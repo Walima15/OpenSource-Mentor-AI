@@ -1,84 +1,96 @@
-"""FastAPI application factory and entrypoint."""
+"""OSMA FastAPI application."""
 
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
-from app.api.v1.routers import (
-    contribute,
-    health,
-    issues,
-    mentor,
-    pr,
-    profile,
-    repos,
-)
-from app.core.config import settings
+from app.agent.mentor import MentorAgent
+from app.api.routes import router
+from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
+from app.core.rate_limit import RateLimiter
+from app.db.session import init_db, make_engine, session_factory
+from app.github.client import GitHubClient
+from app.llm.client import OpenAICompatibleClient
+from app.tools.registry import build_registry
 
 logger = get_logger(__name__)
+_MAX_BODY = 100_000
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        length = request.headers.get("content-length")
+        if length:
+            try:
+                if int(length) > _MAX_BODY:
+                    return JSONResponse({"detail": "Request too large"}, status_code=413)
+            except ValueError:
+                return JSONResponse({"detail": "Invalid content length"}, status_code=400)
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    configure_logging()
-    logger.info("Starting %s (env=%s)", settings.app_name, settings.app_env)
-    # Best-effort: ensure the Qdrant collection exists.
-    try:
-        from app.services.vector_store import get_vector_store
-
-        get_vector_store().ensure_collection()
-    except Exception:  # noqa: BLE001
-        logger.warning("Could not ensure Qdrant collection at startup", exc_info=True)
+    settings = get_settings()
+    configure_logging(settings.log_level)
+    engine = make_engine(settings.database_url)
+    init_db(engine)
+    github = GitHubClient(token=settings.github_token)
+    llm = OpenAICompatibleClient(
+        api_key=settings.openai_api_key,
+        base_url=settings.openai_base_url,
+        model=settings.openai_model,
+    )
+    tools = build_registry(github)
+    app.state.settings = settings
+    app.state.engine = engine
+    app.state.Session = session_factory(engine)
+    app.state.github = github
+    app.state.llm = llm
+    app.state.tools = tools
+    app.state.agent = MentorAgent(llm, tools, max_rounds=settings.max_tool_rounds)
+    app.state.chat_limiter = RateLimiter(settings.rate_limit_chat_per_minute, 60)
+    app.state.read_limiter = RateLimiter(settings.rate_limit_read_per_minute, 60)
+    logger.info(
+        "osma api ready llm_configured=%s github_token_configured=%s",
+        settings.llm_configured,
+        bool(settings.github_token),
+    )
     yield
-    logger.info("Shutting down %s", settings.app_name)
+    llm.close()
+    github.close()
+    engine.dispose()
 
 
 def create_app() -> FastAPI:
+    settings = get_settings()
     app = FastAPI(
-        title=settings.app_name,
-        version="0.1.0",
-        description="AI mentor that guides developers through open-source contributions.",
+        title="OSMA",
+        summary="Open Source Mentor for Bitcoin contributors",
+        version="1.0.0",
         lifespan=lifespan,
     )
-
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Accept"],
     )
-
-    api_prefix = "/api/v1"
-    app.include_router(health.router)
-    app.include_router(profile.router, prefix=api_prefix)
-    app.include_router(repos.router, prefix=api_prefix)
-    app.include_router(issues.router, prefix=api_prefix)
-    app.include_router(mentor.router, prefix=api_prefix)
-    app.include_router(contribute.router, prefix=api_prefix)
-    app.include_router(pr.router, prefix=api_prefix)
-
-    @app.exception_handler(Exception)
-    async def unhandled_exception_handler(request: Request, exc: Exception):
-        logger.exception("Unhandled error on %s %s", request.method, request.url.path)
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "Internal server error"},
-        )
-
-    @app.get("/")
-    def root() -> dict:
-        return {
-            "name": settings.app_name,
-            "docs": "/docs",
-            "health": "/health",
-        }
-
+    app.include_router(router)
     return app
 
 

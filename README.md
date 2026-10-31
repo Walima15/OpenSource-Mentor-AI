@@ -1,240 +1,108 @@
-# OpenSource Mentor AI (OSMA)
+# OSMA
 
-An AI-powered web application that guides developers through contributing to
-open-source projects: issue discovery, repository understanding, code
-contribution, testing, and pull request creation.
+OSMA (Open Source Mentor AI) is a local mentor for people who want to contribute to Bitcoin open-source projects. It teaches the protocol and the review culture, then helps you set up a repository, find a first issue, plan a change, and review a pull request.
 
-OSMA pairs a modern Next.js dashboard with a Python FastAPI backend that hosts a
-modular [LangGraph](https://langchain-ai.github.io/langgraph/) agent system. It
-uses Supabase (Postgres + GitHub OAuth), the GitHub API, Anthropic Claude, and a
-Qdrant vector database for retrieval-augmented reasoning over a repository's
-codebase.
+It does not open pull requests for you, and it will not ACK code you have not read.
 
----
+## What you can ask
 
-## Table of contents
+- Explain a concept: UTXOs, transactions, scripts, blocks, consensus, the peer-to-peer network, the mempool, BIPs, Lightning, ACK/NACK, signed commits, mailing lists, IRC.
+- Walk a learning path. Each lesson has a quiz. Answers stay hidden until you submit.
+- Show a setup guide for Bitcoin Core, libsecp256k1, rust-bitcoin, rust-miniscript, BDK, LDK, LND, Core Lightning, BTCPay Server, or the Lightning BOLTs.
+- Fetch open good-first-issue style tickets from GitHub.
+- Explain a repository or a file.
+- Plan a contribution from a goal or an issue number.
+- Review a pull request URL or a diff, using project review conventions. OSMA will not say ACK for you.
 
-- [Architecture](#architecture)
-- [Monorepo layout](#monorepo-layout)
-- [Tech stack](#tech-stack)
-- [Prerequisites](#prerequisites)
-- [Environment configuration](#environment-configuration)
-- [Supabase + GitHub OAuth setup](#supabase--github-oauth-setup)
-- [Running with Docker](#running-with-docker-compose)
-- [Running locally](#running-locally-without-docker)
-- [Development roadmap](#development-roadmap)
-
----
+With `OPENAI_API_KEY` set, a tool-calling model writes the reply. Without a key, **guide mode** still calls the same tools and assembles the answer from the curriculum and GitHub. That is enough to learn and to try the app.
 
 ## Architecture
 
-Two services in a single monorepo communicating over HTTP.
-
 ```
-                 +---------------------------+
-   Developer --> |   Next.js 15 (apps/web)   |
-                 |  - Dashboard UI           |
-                 |  - Supabase GitHub OAuth  |
-                 |  - GitHub REST proxy      |
-                 +-------------+-------------+
-                               | Supabase JWT (Bearer)
-                               v
-                 +---------------------------+
-                 | FastAPI (services/agent-  |
-                 |          api)             |
-                 |  - REST API               |
-                 |  - LangGraph agents       |
-                 |  - Repo ingestion         |
-                 +----+--------+--------+-----+
-                      |        |        |
-                      v        v        v
-                 Postgres   Qdrant   Anthropic
-                (Supabase) (vectors)  (Claude)
-                      ^
-                      |
-                   GitHub API
+Browser
+  └─ Next.js (apps/web)          chat, curriculum, project pages
+       └─ same-origin proxy      only /health and /api/v1/* 
+            └─ FastAPI (services/agent-api)
+                 ├─ mentor loop  OpenAI-compatible /chat/completions
+                 ├─ tools        curriculum, projects, GitHub, review
+                 └─ SQLite       conversations only
 ```
 
-- **Auth**: Next.js uses Supabase Auth with the GitHub provider. The Supabase
-  session JWT is forwarded to FastAPI as a Bearer token. FastAPI validates it and
-  loads/creates the user profile. The GitHub provider token is stored encrypted
-  for server-side API calls on the user's behalf.
-- **Agents**: A LangGraph state graph routes requests by intent
-  (explain repo, explain issue, plan, recommend files, suggest code, suggest
-  tests, write PR). Each capability is an independently testable node.
-- **Retrieval**: Repositories are chunked, embedded, and upserted to Qdrant so
-  agents can ground their answers in the actual codebase.
-- **Pull requests**: OSMA can open a real PR on GitHub. It forks the upstream
-  repo (when needed), creates a branch, applies the AI code suggestions, and
-  opens the pull request against the base branch.
-- **Durable ingestion**: When `REDIS_URL` is set, repo indexing runs on a
-  separate Arq worker so jobs survive web-process restarts. Without it, indexing
-  falls back to in-process background tasks.
-- **Security**: Postgres Row Level Security policies scope every user-owned row
-  to the authenticated Supabase user (defense-in-depth alongside API scoping).
+The GitHub token and the LLM key stay in the environment. They are sent as headers to `api.github.com` and to `OPENAI_BASE_URL`. They are not stored in SQLite, not written into tool results, and there is no job queue that could hold them. Logs pass through a redaction filter.
 
-## Monorepo layout
+The web proxy only forwards to `localhost`, `127.0.0.1`, or the Compose hostname `agent-api`. Redirects from GitHub and from the LLM endpoint are not followed.
 
-```
-osma/
-  apps/
-    web/             # Next.js 15 (App Router, TS, Tailwind)
-  services/
-    agent-api/       # FastAPI + LangGraph + Qdrant + Anthropic
-                     #   app/worker.py -> Arq background worker
-  packages/
-    shared-types/    # Shared TypeScript types
-  infra/
-    postgres/        # Local Postgres init
-    qdrant/          # Qdrant config
-  docker-compose.yml # web, agent-api, worker, postgres, qdrant, redis
-  .env.example
-  Makefile
-```
+## Run locally without Docker
 
-See each service's directory for more detail.
-
-## Tech stack
-
-| Layer            | Technology                                  |
-| ---------------- | ------------------------------------------- |
-| Frontend         | Next.js 15, TypeScript, Tailwind CSS        |
-| Auth             | Supabase Auth (GitHub OAuth)                |
-| Backend          | FastAPI (Python 3.11+)                       |
-| Agent framework  | LangGraph                                   |
-| LLM              | Anthropic Claude / Together / OpenAI (via `LLM_PROVIDER`) |
-| Custom model     | Fine-tune an OSMA Mentor model (Together.ai) - see `services/agent-api/finetune/` |
-| Database         | PostgreSQL (Supabase)                       |
-| Vector DB        | Qdrant                                      |
-| Embeddings       | fastembed (local, configurable)             |
-| Source control   | GitHub API                                  |
-
-## Prerequisites
-
-- [Docker](https://docs.docker.com/get-docker/) and Docker Compose, OR
-- Node.js 20+ and Python 3.11+ for local development
-- A [Supabase](https://supabase.com/) project
-- A GitHub OAuth app
-- An [Anthropic API key](https://console.anthropic.com/)
-
-## Environment configuration
-
-Copy the example file and fill in the values:
+Requirements: Python 3.11+, Node.js 22, and git.
 
 ```bash
 cp .env.example .env
+# Optional: put a real key in OPENAI_API_KEY and a token in GITHUB_TOKEN.
+
+make install
+make dev
 ```
 
-Every variable is documented in [.env.example](.env.example). At minimum you need
-Supabase keys, an Anthropic API key, and a GitHub OAuth client id/secret.
+- Web: http://127.0.0.1:3000
+- API: http://127.0.0.1:8000 (interactive docs at http://127.0.0.1:8000/docs)
 
-## Supabase + GitHub OAuth setup
+`make dev` starts both processes. Ctrl-C stops them. You can also run `make api-dev` and `make web-dev` in two terminals.
 
-1. Create a Supabase project. Note the **Project URL**, **anon key**, and
-   **service role key** (Project Settings -> API).
-2. Find your **JWT secret** (Project Settings -> API -> JWT Settings) and set
-   `SUPABASE_JWT_SECRET`.
-3. Create a GitHub OAuth app (GitHub -> Settings -> Developer settings ->
-   OAuth Apps):
-   - Homepage URL: `http://localhost:3000`
-   - Authorization callback URL:
-     `https://<your-project-ref>.supabase.co/auth/v1/callback`
-4. In Supabase (Authentication -> Providers -> GitHub), enable GitHub and paste
-   the client id/secret. Request the `repo read:user` scopes so the agent can
-   read repositories and open pull requests.
-5. Add `http://localhost:3000/auth/callback` to Supabase's allowed redirect URLs
-   (Authentication -> URL Configuration).
-6. Run the database migrations (see below) to create the application tables.
+The API reads `.env` from the repository root. An empty `OPENAI_API_KEY` is valid: chat uses guide mode.
 
-## Running with Docker Compose
+Check the install:
 
 ```bash
-cp .env.example .env   # then fill in values
-make up                # or: docker compose up --build
+make lint
+make test
+make build
 ```
 
-Services:
+## Run with Docker
 
-- Web: http://localhost:3000
-- API: http://localhost:8000 (docs at http://localhost:8000/docs)
-- Worker: Arq background worker (no exposed port)
-- Qdrant: http://localhost:6333
-- Redis: localhost:6379 (durable job queue)
-- Postgres: localhost:5432 (only used for fully-local mode)
-
-Apply migrations once the API container is up:
+Requirements: Docker with Compose v2.
 
 ```bash
-make migrate
+cp .env.example .env
+# Optional: fill in OPENAI_API_KEY and GITHUB_TOKEN.
+make up
 ```
 
-Run the backend test suite (no local Python needed):
+`make up` is `docker compose up --build`. The site is http://127.0.0.1:3000 and the API is http://127.0.0.1:8000. Ports are bound to loopback. SQLite lives in the `osma-data` volume.
 
 ```bash
-make api-test-docker
+make down
 ```
 
-If host port 3000 is already in use, set an alternate web port in `.env`:
+## Configuration
 
-```bash
-WEB_PORT=3002   # then: docker compose up -d web  -> http://localhost:3002
-```
+| Variable | Purpose |
+| --- | --- |
+| `OPENAI_API_KEY` | Bearer token for the chat API. Empty enables guide mode. |
+| `OPENAI_BASE_URL` | OpenAI-compatible base, default `https://api.openai.com/v1`. `http://` is allowed only for localhost (for example Ollama on `http://127.0.0.1:11434/v1`). |
+| `OPENAI_MODEL` | Model name sent as `model`. Default `gpt-4o-mini`. |
+| `GITHUB_TOKEN` | Optional. Public read is enough. Without it, GitHub's anonymous rate limit applies. |
+| `DATABASE_URL` | Default SQLite file `sqlite:///./data/osma.db` under `services/agent-api`. |
+| `AGENT_API_URL` | Where the Next.js server proxies. Default `http://127.0.0.1:8000`. |
 
-## Running locally (without Docker)
+There is one env example file: `.env.example`. Do not commit `.env`.
 
-Backend:
+## Tests
 
-```bash
-cd services/agent-api
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload --port 8000
-```
+API tests live in `services/agent-api/tests`. They cover the curriculum, project guides, GitHub tools (with a fake client and a mock HTTP transport), the tool-calling loop, guide mode, validation, and the chat rate limit. The LLM is scripted in tests, so no key is required.
 
-Optional durable worker (requires Redis + `REDIS_URL`):
+The web package tests the proxy allowlist (`npm test` in `apps/web`).
 
-```bash
-cd services/agent-api
-arq app.worker.WorkerSettings        # or: make worker
-```
+## Limitations
 
-Frontend:
-
-```bash
-cd apps/web
-npm install
-npm run dev
-```
-
-## Custom "OSMA Mentor" model (fine-tuning)
-
-The agent is provider-agnostic (`LLM_PROVIDER` = `anthropic` | `together` |
-`openai`). You can fine-tune an open-source model into a custom OSMA Mentor model
-on Together.ai and serve it with zero changes to the agent graph:
-
-```bash
-cd services/agent-api
-python -m finetune.build_dataset          # seed dataset (no keys needed)
-python -m finetune.distill --teacher anthropic   # optional: scale with a teacher
-python -m finetune.finetune_together --wait       # LoRA fine-tune on Together
-# then set LLM_PROVIDER=together and TOGETHER_MODEL=<output> and restart the API
-```
-
-See [services/agent-api/finetune/README.md](services/agent-api/finetune/README.md).
-
-## Development roadmap
-
-1. Monorepo scaffold, env, Docker compose, health checks. (done)
-2. Backend core: FastAPI app, config, Supabase JWT auth, SQLAlchemy + Alembic.
-3. Frontend core: Next.js, Tailwind, Supabase auth, dashboard shell, API client.
-4. GitHub integration: repo search/track, structure/docs, issue discovery.
-5. Repo ingestion + Qdrant embeddings + index status UI.
-6. Agent system: LangGraph graph, repo/issue/plan nodes, mentor SSE flow.
-7. Contribution assistant: file/code/test suggestion nodes + DiffViewer.
-8. PR assistant: commit/PR/summary nodes + PR draft UI.
-9. Profile + skill tracking, polish, responsive pass, seed data.
-10. Hardening: error handling, rate-limit handling, tests, final docs.
+- No accounts. Anyone who can open the port can read the conversations in that SQLite file. Keep it on localhost.
+- Guide mode routes by phrases and then calls tools. It is not a free-form tutor. Set an API key for that.
+- OSMA does not fork repositories, push commits, or open pull requests.
+- Setup steps are a map, not a mirror of upstream docs. When they disagree, follow the repository.
+- Good-first-issue search depends on the labels projects actually use. Bitcoin Core often has few of them. Reviewing an existing pull request is the better first contribution, and the mentor says so.
+- Rate limits are in-memory and per process.
+- The web proxy will not forward to an arbitrary host. Local and Compose hostnames only.
 
 ## License
 

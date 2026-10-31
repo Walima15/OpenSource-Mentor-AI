@@ -1,122 +1,43 @@
 services:
-  web:
-    build:
-      context: ./apps/web
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-        NEXT_PUBLIC_AGENT_API_URL: ${NEXT_PUBLIC_AGENT_API_URL}
-        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
-    ports:
-      - "${WEB_PORT:-3000}:3000"
-    environment:
-      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - NEXT_PUBLIC_AGENT_API_URL=${NEXT_PUBLIC_AGENT_API_URL}
-      - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
-      - AGENT_API_URL=http://agent-api:8000
-    depends_on:
-      - agent-api
-    restart: unless-stopped
-
   agent-api:
     build:
       context: ./services/agent-api
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - path: .env
+        required: false
     environment:
-      - APP_ENV=${APP_ENV:-development}
-      - DATABASE_URL=${DATABASE_URL}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-3-5-sonnet-latest}
-      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
-      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
-      - GITHUB_FALLBACK_TOKEN=${GITHUB_FALLBACK_TOKEN}
-      - QDRANT_URL=http://qdrant:6333
-      - QDRANT_API_KEY=${QDRANT_API_KEY}
-      - QDRANT_COLLECTION=${QDRANT_COLLECTION:-osma_repo_chunks}
-      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-fastembed}
-      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
-      - EMBEDDING_DIM=${EMBEDDING_DIM:-384}
-      - TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY}
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      postgres:
-        condition: service_healthy
-      qdrant:
-        condition: service_started
-      redis:
-        condition: service_started
-    restart: unless-stopped
-
-  worker:
-    build:
-      context: ./services/agent-api
-      dockerfile: Dockerfile
-    command: ["arq", "app.worker.WorkerSettings"]
-    # The worker does not serve HTTP, so disable the image's curl healthcheck.
-    healthcheck:
-      disable: true
-    environment:
-      - APP_ENV=${APP_ENV:-development}
-      - DATABASE_URL=${DATABASE_URL}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - GITHUB_FALLBACK_TOKEN=${GITHUB_FALLBACK_TOKEN}
-      - QDRANT_URL=http://qdrant:6333
-      - QDRANT_API_KEY=${QDRANT_API_KEY}
-      - QDRANT_COLLECTION=${QDRANT_COLLECTION:-osma_repo_chunks}
-      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-fastembed}
-      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
-      - EMBEDDING_DIM=${EMBEDDING_DIM:-384}
-      - TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY}
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      postgres:
-        condition: service_healthy
-      qdrant:
-        condition: service_started
-      redis:
-        condition: service_started
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      - POSTGRES_USER=osma
-      - POSTGRES_PASSWORD=osma
-      - POSTGRES_DB=osma
-    ports:
-      - "5432:5432"
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: sqlite:////data/osma.db
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./infra/postgres/init:/docker-entrypoint-initdb.d
+      - osma-data:/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U osma"]
-      interval: 5s
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 15s
+    restart: unless-stopped
 
-  qdrant:
-    image: qdrant/qdrant:latest
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
     ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - qdrant_storage:/qdrant/storage
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
+      - "127.0.0.1:3000:3000"
+    environment:
+      AGENT_API_URL: http://agent-api:8000
+    depends_on:
+      agent-api:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
-  postgres_data:
-  qdrant_storage:
+  osma-data:

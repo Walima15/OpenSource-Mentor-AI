@@ -1,36 +1,24 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  darkMode: "class",
-  content: [
-    "./src/app/**/*.{ts,tsx}",
-    "./src/components/**/*.{ts,tsx}",
-  ],
+  content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        brand: {
-          50: "#eef2ff",
-          100: "#e0e7ff",
-          200: "#c7d2fe",
-          300: "#a5b4fc",
-          400: "#818cf8",
-          500: "#6366f1",
-          600: "#4f46e5",
-          700: "#4338ca",
-          800: "#3730a3",
-          900: "#312e81",
-        },
-        surface: {
-          DEFAULT: "#0b0f19",
-          card: "#111827",
-          muted: "#1f2937",
-          border: "#293244",
-        },
+        paper: "#f3efe4",
+        ink: "#1c1712",
+        muted: "#5e564c",
+        line: "#e4d8c4",
+        card: "#fffaf2",
+        rust: "#9a3412",
+        moss: "#3f6212",
       },
       fontFamily: {
-        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
-        mono: ["var(--font-mono)", "ui-monospace", "monospace"],
+        serif: ["var(--font-serif)", "Georgia", "serif"],
+        sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+      },
+      boxShadow: {
+        card: "0 1px 0 rgba(28,23,18,0.04), 0 16px 40px rgba(80, 52, 20, 0.06)",
       },
     },
   },

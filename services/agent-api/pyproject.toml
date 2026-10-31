@@ -1,21 +1,25 @@
 [project]
 name = "osma-agent-api"
-version = "0.1.0"
-description = "OpenSource Mentor AI - FastAPI + LangGraph agent backend"
+version = "1.0.0"
+description = "OpenSource Mentor AI — FastAPI mentor for Bitcoin open source"
 requires-python = ">=3.11"
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
-ignore = ["B008"]  # FastAPI uses function calls in argument defaults (Depends)
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# Lesson prose and the system prompt are long on purpose.
+"app/content/*.py" = ["E501"]
+"app/agent/prompts.py" = ["E501"]
+"app/agent/fallback.py" = ["E501"]
+"app/agent/render.py" = ["E501"]
+"tests/conftest.py" = ["E402"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-asyncio_mode = "auto"
-
-[tool.mypy]
-python_version = "3.11"
-ignore_missing_imports = true
+pythonpath = ["."]

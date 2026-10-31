@@ -1,2 +1,0 @@
-# Generated datasets (seed lives in seed_examples.py; distilled/train/val are built)
-*.jsonl

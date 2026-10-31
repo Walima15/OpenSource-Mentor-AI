@@ -1,70 +1,50 @@
 import Link from "next/link";
 
-const FEATURES = [
+const steps = [
   {
-    title: "Find good first issues",
-    body: "Discover beginner-friendly issues labeled 'good first issue' and 'help wanted' across any repository.",
+    title: "Learn the protocol",
+    text: "UTXOs, transactions, scripts, blocks, consensus, the peer-to-peer network, the mempool, BIPs, and Lightning. Each lesson ends in a quiz.",
+    href: "/learn",
   },
   {
-    title: "Understand any codebase",
-    body: "The AI mentor analyzes architecture and explains how a project is organized in plain language.",
+    title: "Learn the culture",
+    text: "ACK and NACK, review club, tests, signed commits, pull request etiquette, mailing lists, and IRC. The mentor will not ACK a patch for you.",
+    href: "/learn/contribution-craft",
   },
   {
-    title: "Get guided contributions",
-    body: "Receive an implementation plan, file recommendations, code suggestions, and tests.",
-  },
-  {
-    title: "Ship pull requests",
-    body: "Generate commit messages, PR descriptions, and change summaries ready to submit.",
+    title: "Practice on a real repo",
+    text: "Bitcoin Core, BDK, LDK, rust-bitcoin, LND, Core Lightning, BTCPay Server, and the BOLTs, with setup notes and live good-first issues.",
+    href: "/projects",
   },
 ];
 
-export default function LandingPage() {
+export default function HomePage() {
   return (
-    <main className="min-h-screen">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-        <span className="text-lg font-semibold">
-          OpenSource <span className="text-brand-400">Mentor AI</span>
-        </span>
-        <Link href="/login" className="btn-primary">
-          Sign in with GitHub
+    <main className="mx-auto max-w-6xl px-4 py-14">
+      <p className="text-sm uppercase tracking-[0.18em] text-rust">Bitcoin open source</p>
+      <h1 className="mt-3 max-w-3xl font-serif text-5xl leading-[1.05] tracking-tight sm:text-6xl">
+        A mentor for the work, not a machine that opens pull requests.
+      </h1>
+      <p className="mt-5 max-w-2xl text-lg text-muted">
+        OSMA teaches you how to contribute to Bitcoin projects: the protocol, the review culture, how to build the
+        code, and how to read a diff. You still write the patch and show up for review.
+      </p>
+      <div className="mt-8 flex flex-wrap gap-3">
+        <Link href="/chat" className="rounded-full bg-ink px-5 py-2.5 text-sm text-paper">
+          Start a session
         </Link>
-      </header>
-
-      <section className="mx-auto max-w-4xl px-6 pb-16 pt-12 text-center">
-        <span className="badge bg-brand-500/10 text-brand-300">
-          Your AI pair-mentor for open source
-        </span>
-        <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-5xl">
-          Contribute to open source
-          <span className="block text-brand-400">with confidence.</span>
-        </h1>
-        <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-400">
-          OpenSource Mentor AI guides you from finding an issue to opening a pull
-          request: it explains the codebase, plans your work, suggests code and
-          tests, and drafts your PR.
-        </p>
-        <div className="mt-8 flex justify-center gap-3">
-          <Link href="/login" className="btn-primary px-6 py-3 text-base">
-            Get started
+        <Link href="/learn" className="rounded-full border border-line bg-card px-5 py-2.5 text-sm">
+          Browse the curriculum
+        </Link>
+      </div>
+      <div className="mt-14 grid gap-4 md:grid-cols-3">
+        {steps.map((step) => (
+          <Link key={step.title} href={step.href} className="rounded-2xl border border-line bg-card p-5 shadow-card">
+            <h2 className="font-serif text-2xl">{step.title}</h2>
+            <p className="mt-2 text-sm leading-6 text-muted">{step.text}</p>
           </Link>
-          <a
-            href="https://github.com"
-            className="btn-secondary px-6 py-3 text-base"
-          >
-            Learn more
-          </a>
-        </div>
-      </section>
-
-      <section className="mx-auto grid max-w-5xl gap-4 px-6 pb-24 sm:grid-cols-2">
-        {FEATURES.map((f) => (
-          <div key={f.title} className="card">
-            <h3 className="text-lg font-semibold text-slate-100">{f.title}</h3>
-            <p className="mt-2 text-sm text-slate-400">{f.body}</p>
-          </div>
         ))}
-      </section>
+      </div>
     </main>
   );
 }
