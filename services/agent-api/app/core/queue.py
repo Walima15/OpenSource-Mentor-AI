@@ -23,15 +23,19 @@ def _redis_settings():
     return RedisSettings.from_dsn(settings.redis_url)
 
 
-async def enqueue_ingestion(repo_id: str, token: str | None) -> bool:
-    """Enqueue a repo ingestion job. Returns True if enqueued, False otherwise."""
+async def enqueue_ingestion(repo_id: str) -> bool:
+    """Enqueue a repo ingestion job. Returns True if enqueued, False otherwise.
+
+    The job argument is only the repository id. The worker loads the GitHub
+    token from the database so the secret is not written to Redis.
+    """
     if not queue_enabled():
         return False
     try:
         from arq import create_pool
 
         pool = await create_pool(_redis_settings())
-        await pool.enqueue_job("ingest_repo_task", repo_id, token)
+        await pool.enqueue_job("ingest_repo_task", repo_id)
         await pool.close()
         return True
     except Exception:  # noqa: BLE001

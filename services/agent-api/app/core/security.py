@@ -82,14 +82,38 @@ async def get_current_user(
 # ---------------------------------------------------------------------------
 # Token encryption (Fernet)
 # ---------------------------------------------------------------------------
+def enforce_production_security() -> None:
+    """Refuse to start in production without an explicit encryption key.
+
+    Development may leave the key unset and derive one from the JWT secret
+    at encrypt time. A shared hardcoded key is never used.
+    """
+    key = (settings.token_encryption_key or "").strip()
+    if settings.is_production and not key:
+        raise RuntimeError(
+            "TOKEN_ENCRYPTION_KEY must be set when APP_ENV=production"
+        )
+    if key:
+        try:
+            Fernet(key.encode())
+        except (ValueError, TypeError) as exc:
+            raise RuntimeError(
+                "TOKEN_ENCRYPTION_KEY is not a valid Fernet key"
+            ) from exc
+
+
 def _fernet() -> Fernet:
-    key = settings.token_encryption_key
+    key = (settings.token_encryption_key or "").strip()
     if not key:
-        # Derive a stable key from the JWT secret as a dev fallback so the app
-        # still boots; production MUST set TOKEN_ENCRYPTION_KEY explicitly.
-        digest = hashlib.sha256(
-            (settings.supabase_jwt_secret or "osma-dev").encode()
-        ).digest()
+        if settings.is_production:
+            enforce_production_security()
+        secret = (settings.supabase_jwt_secret or "").strip()
+        if not secret:
+            raise RuntimeError(
+                "Set TOKEN_ENCRYPTION_KEY (or SUPABASE_JWT_SECRET in development) "
+                "before storing GitHub tokens"
+            )
+        digest = hashlib.sha256(secret.encode()).digest()
         key = base64.urlsafe_b64encode(digest).decode()
     return Fernet(key.encode() if isinstance(key, str) else key)
 

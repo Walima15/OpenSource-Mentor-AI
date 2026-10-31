@@ -6,7 +6,10 @@ from fastapi import APIRouter
 from sqlalchemy import text
 
 from app.core.config import settings
+from app.core.logging import get_logger
 from app.db.session import engine
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["health"])
 
@@ -24,16 +27,18 @@ def health_deps() -> dict:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         checks["database"] = "ok"
-    except Exception as exc:  # noqa: BLE001
-        checks["database"] = f"error: {exc}"
+    except Exception:  # noqa: BLE001
+        logger.exception("Database health check failed")
+        checks["database"] = "error"
 
     try:
         from app.services.vector_store import get_vector_store
 
         get_vector_store().client.get_collections()
         checks["qdrant"] = "ok"
-    except Exception as exc:  # noqa: BLE001
-        checks["qdrant"] = f"error: {exc}"
+    except Exception:  # noqa: BLE001
+        logger.exception("Qdrant health check failed")
+        checks["qdrant"] = "error"
 
     checks["anthropic"] = "configured" if settings.anthropic_api_key else "missing key"
     overall = "ok" if all(v == "ok" or v == "configured" for v in checks.values()) else "degraded"

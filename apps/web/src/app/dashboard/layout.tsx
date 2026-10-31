@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { GitHubTokenNotice } from "@/components/GitHubTokenNotice";
 import { Sidebar } from "@/components/Sidebar";
 
 export default async function DashboardLayout({
@@ -19,7 +20,10 @@ export default async function DashboardLayout({
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <main className="scrollbar-thin flex-1 overflow-y-auto">{children}</main>
+      <main className="scrollbar-thin flex-1 overflow-y-auto">
+        <GitHubTokenNotice />
+        {children}
+      </main>
     </div>
   );
 }

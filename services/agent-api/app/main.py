@@ -19,6 +19,7 @@ from app.api.v1.routers import (
 )
 from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
+from app.core.security import enforce_production_security
 
 logger = get_logger(__name__)
 
@@ -39,11 +40,16 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    enforce_production_security()
+    show_docs = not settings.is_production
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
         description="AI mentor that guides developers through open-source contributions.",
         lifespan=lifespan,
+        docs_url="/docs" if show_docs else None,
+        redoc_url="/redoc" if show_docs else None,
+        openapi_url="/openapi.json" if show_docs else None,
     )
 
     app.add_middleware(
@@ -73,11 +79,10 @@ def create_app() -> FastAPI:
 
     @app.get("/")
     def root() -> dict:
-        return {
-            "name": settings.app_name,
-            "docs": "/docs",
-            "health": "/health",
-        }
+        body = {"name": settings.app_name, "health": "/health"}
+        if app.docs_url:
+            body["docs"] = app.docs_url
+        return body
 
     return app
 

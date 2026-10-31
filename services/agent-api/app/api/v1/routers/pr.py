@@ -12,6 +12,7 @@ from app.agents.graph import run_intent
 from app.agents.llm import LLMNotConfigured
 from app.agents.state import AgentState
 from app.api.deps import current_user, db_session, github_token
+from app.core.rate_limit import limit_pr_create
 from app.core.security import AuthUser
 from app.db.crud import bump_skill, get_user_plan
 from app.db.models import (
@@ -129,7 +130,11 @@ def summarize(
     return AgentTextOut(content=result.get("output", ""))
 
 
-@router.post("/{plan_id}/create", response_model=PullRequestCreateOut)
+@router.post(
+    "/{plan_id}/create",
+    response_model=PullRequestCreateOut,
+    dependencies=[Depends(limit_pr_create)],
+)
 async def create_pr(
     plan_id: uuid.UUID,
     payload: PullRequestCreateIn,

@@ -5,9 +5,15 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.github_input import validate_github_name, validate_repo_file_path
 from app.db.models import IndexStatus, MentorRole, PlanStatus, SkillLevel
+
+# Caps for inputs that are sent to the model or stored on the profile.
+CHAT_MESSAGE_MAX = 4000
+INSTRUCTION_MAX = 2000
+BIO_MAX = 2000
 
 
 class ORMModel(BaseModel):
@@ -28,7 +34,7 @@ class ProfileOut(ORMModel):
 
 
 class ProfileUpdate(BaseModel):
-    bio: str | None = None
+    bio: str | None = Field(default=None, max_length=BIO_MAX)
     avatar_url: str | None = None
 
 
@@ -61,8 +67,13 @@ class RepoSearchResult(BaseModel):
 
 
 class RepoTrackIn(BaseModel):
-    owner: str
-    name: str
+    owner: str = Field(min_length=1, max_length=255)
+    name: str = Field(min_length=1, max_length=255)
+
+    @field_validator("owner", "name")
+    @classmethod
+    def check_github_name(cls, value: str) -> str:
+        return validate_github_name(value)
 
 
 class TrackedRepoOut(ORMModel):
@@ -148,7 +159,7 @@ class MentorMessageOut(ORMModel):
 
 
 class ChatIn(BaseModel):
-    message: str = Field(min_length=1)
+    message: str = Field(min_length=1, max_length=CHAT_MESSAGE_MAX)
 
 
 class AgentTextOut(BaseModel):
@@ -192,8 +203,13 @@ class CodeSuggestionOut(ORMModel):
 
 
 class SuggestCodeIn(BaseModel):
-    file_path: str
-    instruction: str | None = None
+    file_path: str = Field(min_length=1, max_length=512)
+    instruction: str | None = Field(default=None, max_length=INSTRUCTION_MAX)
+
+    @field_validator("file_path")
+    @classmethod
+    def check_file_path(cls, value: str) -> str:
+        return validate_repo_file_path(value)
 
 
 class PullRequestDraftOut(ORMModel):
@@ -210,7 +226,7 @@ class GitHubTokenIn(BaseModel):
     """Used by the web app to persist the GitHub provider token after login."""
 
     access_token: str
-    scope: str | None = None
+    scope: str | None = Field(default=None, max_length=512)
 
 
 class PullRequestCreateIn(BaseModel):

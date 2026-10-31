@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 
+from app.core.github_input import validate_repo_file_path
 from app.core.logging import get_logger
 from app.services.github_service import GitHubError, GitHubService
 
@@ -105,7 +106,12 @@ async def create_pull_request_for_plan(
     skipped: list[str] = []
 
     for suggestion in suggestions:
-        path = suggestion.file_path
+        try:
+            path = validate_repo_file_path(suggestion.file_path)
+        except ValueError:
+            logger.warning("Skipping disallowed path on plan PR")
+            skipped.append(suggestion.file_path)
+            continue
         original = (
             await gh.get_file_content(head_owner, head_name, path, branch_name) or ""
         )

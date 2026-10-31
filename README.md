@@ -35,7 +35,6 @@ Two services in a single monorepo communicating over HTTP.
    Developer --> |   Next.js 15 (apps/web)   |
                  |  - Dashboard UI           |
                  |  - Supabase GitHub OAuth  |
-                 |  - GitHub REST proxy      |
                  +-------------+-------------+
                                | Supabase JWT (Bearer)
                                v
@@ -159,7 +158,7 @@ Services:
 - API: http://localhost:8000 (docs at http://localhost:8000/docs)
 - Worker: Arq background worker (no exposed port)
 - Qdrant: http://localhost:6333
-- Redis: localhost:6379 (durable job queue)
+- Redis: internal Docker network only (set `REDIS_PASSWORD`; port 6379 is not published)
 - Postgres: localhost:5432 (only used for fully-local mode)
 
 Apply migrations once the API container is up:

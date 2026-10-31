@@ -17,7 +17,6 @@ src/
     page.tsx                 # Landing page
     login/                   # GitHub OAuth sign-in
     auth/callback/route.ts   # OAuth code exchange + token sync
-    api/github/[...path]/    # Server-side GitHub REST proxy
     dashboard/
       layout.tsx             # Auth-guarded shell + sidebar
       page.tsx               # Overview

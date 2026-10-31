@@ -14,6 +14,7 @@ from app.agents.llm import LLMNotConfigured, get_llm
 from app.agents.state import AgentState
 from app.agents.tools.retriever import retrieve_context
 from app.api.deps import current_user, db_session, github_token
+from app.core.rate_limit import limit_mentor
 from app.core.security import AuthUser
 from app.db.crud import get_user_repo, get_user_session
 from app.db.models import (
@@ -144,7 +145,11 @@ async def _run_session_intent(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
-@router.post("/sessions/{session_id}/explain-repo", response_model=AgentTextOut)
+@router.post(
+    "/sessions/{session_id}/explain-repo",
+    response_model=AgentTextOut,
+    dependencies=[Depends(limit_mentor)],
+)
 async def explain_repo(
     session_id: uuid.UUID,
     db: Session = Depends(db_session),
@@ -158,7 +163,11 @@ async def explain_repo(
     return AgentTextOut(content=result.get("output", ""))
 
 
-@router.post("/sessions/{session_id}/explain-issue", response_model=AgentTextOut)
+@router.post(
+    "/sessions/{session_id}/explain-issue",
+    response_model=AgentTextOut,
+    dependencies=[Depends(limit_mentor)],
+)
 async def explain_issue(
     session_id: uuid.UUID,
     db: Session = Depends(db_session),
@@ -172,7 +181,11 @@ async def explain_issue(
     return AgentTextOut(content=result.get("output", ""))
 
 
-@router.post("/sessions/{session_id}/plan", response_model=ContributionPlanOut)
+@router.post(
+    "/sessions/{session_id}/plan",
+    response_model=ContributionPlanOut,
+    dependencies=[Depends(limit_mentor)],
+)
 async def create_plan(
     session_id: uuid.UUID,
     db: Session = Depends(db_session),
@@ -194,7 +207,7 @@ async def create_plan(
     return ContributionPlanOut.model_validate(plan)
 
 
-@router.post("/sessions/{session_id}/chat")
+@router.post("/sessions/{session_id}/chat", dependencies=[Depends(limit_mentor)])
 async def chat(
     session_id: uuid.UUID,
     payload: ChatIn,

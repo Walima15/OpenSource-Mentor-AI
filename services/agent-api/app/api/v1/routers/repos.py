@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import current_user, db_session, github_token
 from app.core.queue import enqueue_ingestion
+from app.core.rate_limit import limit_index
 from app.core.security import AuthUser
 from app.db.crud import bump_skill, get_or_create_profile, get_user_repo
 from app.db.models import IndexStatus, RepoIndexChunk, TrackedRepo
@@ -125,7 +126,11 @@ def _run_ingestion(repo_id: uuid.UUID, token: str | None) -> None:
         db.close()
 
 
-@router.post("/{repo_id}/index", response_model=IndexStatusOut)
+@router.post(
+    "/{repo_id}/index",
+    response_model=IndexStatusOut,
+    dependencies=[Depends(limit_index)],
+)
 async def index_repo(
     repo_id: uuid.UUID,
     background: BackgroundTasks,
@@ -140,7 +145,7 @@ async def index_repo(
     db.flush()
 
     # Prefer the durable Arq/Redis queue; fall back to in-process background task.
-    enqueued = await enqueue_ingestion(str(repo.id), token)
+    enqueued = await enqueue_ingestion(str(repo.id))
     if not enqueued:
         background.add_task(_run_ingestion, repo.id, token)
 
