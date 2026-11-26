@@ -9,6 +9,8 @@ from pathlib import Path
 _DIR = Path(tempfile.mkdtemp(prefix="osma-test-"))
 os.environ["APP_ENV"] = "test"
 os.environ["DATABASE_URL"] = f"sqlite:///{_DIR / 'test.db'}"
+# The suite pins an empty key and a cloud URL so tests never dial a local daemon.
+# Product defaults (empty key, local Ollama, llama3.2) are asserted separately.
 os.environ["OPENAI_API_KEY"] = ""
 os.environ["OPENAI_BASE_URL"] = "https://api.openai.com/v1"
 os.environ["OPENAI_MODEL"] = "gpt-4o-mini"

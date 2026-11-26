@@ -1,4 +1,4 @@
-"""URL allowlists, redaction, and the LLM client."""
+"""URL allowlists, settings defaults, redaction, and the LLM client."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import logging
 import httpx
 import pytest
 
+from app.core.config import Settings
 from app.core.security import (
     ToolError,
     redact,
@@ -15,6 +16,31 @@ from app.core.security import (
     validate_owner_repo,
 )
 from app.llm.client import OpenAICompatibleClient
+
+
+def test_default_settings_are_local_first(monkeypatch):
+    for name in ("OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL"):
+        monkeypatch.delenv(name, raising=False)
+    assert Settings.model_fields["openai_api_key"].default == ""
+    assert Settings.model_fields["openai_base_url"].default == "http://127.0.0.1:11434/v1"
+    assert Settings.model_fields["openai_model"].default == "llama3.2"
+
+    settings = Settings(_env_file=None)
+    assert settings.openai_api_key == ""
+    assert settings.openai_base_url == "http://127.0.0.1:11434/v1"
+    assert settings.openai_model == "llama3.2"
+    assert settings.llm_configured is False
+
+
+def test_cloud_openai_is_explicit_opt_in(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-4o-mini")
+    settings = Settings(_env_file=None)
+    assert settings.openai_api_key == "test-key"
+    assert settings.openai_base_url == "https://api.openai.com/v1"
+    assert settings.openai_model == "gpt-4o-mini"
+    assert settings.llm_configured is True
 
 
 def test_llm_base_url_policy():

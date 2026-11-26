@@ -1,7 +1,8 @@
 """Environment configuration.
 
 Secrets come from the environment or the repo-root `.env`. Nothing here has a
-real default key.
+real default key. The default chat endpoint is local Ollama. An empty
+`OPENAI_API_KEY` keeps guide mode on, so that endpoint is not called.
 """
 
 from __future__ import annotations
@@ -32,8 +33,8 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./data/osma.db"
 
     openai_api_key: str = ""
-    openai_base_url: str = "https://api.openai.com/v1"
-    openai_model: str = "gpt-4o-mini"
+    openai_base_url: str = "http://127.0.0.1:11434/v1"
+    openai_model: str = "llama3.2"
 
     github_token: str = ""
 

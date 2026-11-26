@@ -185,8 +185,10 @@ export function ChatView({ conversationId }: { conversationId?: string }) {
           {busy ? <p className="mx-auto max-w-2xl text-sm text-muted">Working through the notes…</p> : null}
           {mode === "guide" ? (
             <p className="mx-auto max-w-2xl text-xs text-muted">
-              Guide mode is on. Add OPENAI_API_KEY to .env for a conversational mentor. The curriculum and GitHub
-              tools still run.
+              Guide mode is on. For a conversational mentor, run Ollama locally and set any non-empty
+              OPENAI_API_KEY in .env. Defaults are llama3.2 at http://127.0.0.1:11434/v1. Cloud OpenAI is
+              opt-in: set OPENAI_BASE_URL to https://api.openai.com/v1 and a real key. The curriculum and
+              GitHub tools still run.
             </p>
           ) : null}
           {error ? <p className="mx-auto max-w-2xl text-sm text-rust">{error}</p> : null}
