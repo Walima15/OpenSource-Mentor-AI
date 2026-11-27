@@ -9,11 +9,13 @@ __pycache__/
 *.egg-info/
 .eggs/
 
-# Environment
+# Environment and local data
 .env
 .env.local
 .env*.local
 !.env.example
+data/
+*.db
 
 # Next.js
 .next/
@@ -42,7 +44,3 @@ yarn-error.log*
 .vscode/
 *.swp
 Thumbs.db
-
-# Docker / data volumes
-qdrant_storage/
-postgres_data/

@@ -1,28 +1,25 @@
-"""Structured logging configuration."""
+"""Logging setup. Token-like strings are redacted on the way out."""
+
+from __future__ import annotations
 
 import logging
-import sys
 
-from app.core.config import settings
+from app.core.security import RedactFilter
 
 
-def configure_logging() -> None:
-    level = logging.INFO if settings.is_production else logging.DEBUG
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter(
-        fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-        datefmt="%Y-%m-%dT%H:%M:%S%z",
+def configure_logging(level: str) -> None:
+    logging.basicConfig(
+        level=getattr(logging, level.upper(), logging.INFO),
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
-    handler.setFormatter(formatter)
-
+    redact_filter = RedactFilter()
     root = logging.getLogger()
-    root.handlers.clear()
-    root.addHandler(handler)
-    root.setLevel(level)
-
-    # Quiet noisy third-party loggers
-    for noisy in ("httpx", "httpcore", "urllib3"):
-        logging.getLogger(noisy).setLevel(logging.WARNING)
+    for handler in root.handlers:
+        if not any(isinstance(existing, RedactFilter) for existing in handler.filters):
+            handler.addFilter(redact_filter)
+    # httpx debug logs can include request headers. Keep them quiet.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 def get_logger(name: str) -> logging.Logger:

@@ -1,42 +1,16 @@
 # Web framework
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-python-multipart==0.0.18
-sse-starlette==2.1.3
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
 
 # Settings / validation
-pydantic==2.10.4
-pydantic-settings==2.7.0
+pydantic==2.14.2
+pydantic-settings==2.16.2
 
-# Database
-sqlalchemy==2.0.36
-psycopg[binary]==3.2.3
-alembic==1.14.0
+# Database (SQLite by default; driver is in the stdlib)
+SQLAlchemy==2.1.6
 
-# Auth / security
-pyjwt[crypto]==2.10.1
-cryptography==44.0.0
-
-# HTTP / GitHub
+# HTTP client for the OpenAI-compatible API and GitHub
 httpx==0.28.1
 
-# Agents / LLM
-langgraph==0.2.60
-langchain-core==0.3.28
-langchain-anthropic==0.3.1
-anthropic==0.42.0
-openai==1.59.5
-together==1.3.11
-
-# Vector store + embeddings
-qdrant-client==1.12.1
-fastembed==0.5.0
-
 # Utilities
-tenacity==9.0.0
-python-dotenv==1.0.1
-whatthepatch==1.0.7
-
-# Background jobs (durable ingestion queue; optional - falls back gracefully)
-arq==0.26.1
-redis==5.2.1
+python-dotenv==1.2.4

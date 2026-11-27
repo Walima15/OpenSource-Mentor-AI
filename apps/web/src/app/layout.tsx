@@ -1,18 +1,24 @@
 import type { Metadata } from "next";
+import { Fraunces, Source_Sans_3 } from "next/font/google";
+
+import { Nav } from "@/components/Nav";
 import "./globals.css";
 
+const serif = Fraunces({ subsets: ["latin"], variable: "--font-serif" });
+const sans = Source_Sans_3({ subsets: ["latin"], variable: "--font-sans" });
+
 export const metadata: Metadata = {
-  title: "OpenSource Mentor AI",
-  description:
-    "Your AI mentor for contributing to open-source: discover issues, understand repos, write code, and open pull requests.",
+  title: "OSMA — Open Source Mentor",
+  description: "A mentor for contributing to Bitcoin open-source projects.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
-      <body>{children}</body>
+    <html lang="en">
+      <body className={`${serif.variable} ${sans.variable} font-sans text-ink antialiased`}>
+        <Nav />
+        {children}
+      </body>
     </html>
   );
 }

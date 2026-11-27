@@ -1,91 +1,88 @@
-"""Application configuration loaded from environment variables."""
+"""Environment configuration.
 
+Secrets come from the environment or the repo-root `.env`. Nothing here has a
+real default key. The default chat endpoint is local Ollama. An empty
+`OPENAI_API_KEY` keeps guide mode on, so that endpoint is not called.
+"""
+
+from __future__ import annotations
+
+import os
 from functools import lru_cache
+from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.core.security import no_control_lines, validate_llm_base_url
+
+_ROOT_ENV = Path(__file__).resolve().parents[3] / ".env"
+
+
+def _env_file() -> str | None:
+    if os.environ.get("APP_ENV") == "test":
+        return None
+    if _ROOT_ENV.is_file():
+        return str(_ROOT_ENV)
+    return None
 
 
 class Settings(BaseSettings):
+    app_env: str = "development"
+    log_level: str = "INFO"
+    database_url: str = "sqlite:///./data/osma.db"
+
+    openai_api_key: str = ""
+    openai_base_url: str = "http://127.0.0.1:11434/v1"
+    openai_model: str = "llama3.2"
+
+    github_token: str = ""
+
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    rate_limit_chat_per_minute: int = Field(default=20, ge=1, le=10_000)
+    rate_limit_read_per_minute: int = Field(default=120, ge=1, le=10_000)
+    max_tool_rounds: int = Field(default=4, ge=1, le=8)
+
     model_config = SettingsConfigDict(
-        env_file=(".env", "../../.env"),
+        env_file=_env_file(),
         env_file_encoding="utf-8",
         extra="ignore",
-        case_sensitive=False,
     )
 
-    # App
-    app_env: str = Field(default="development")
-    app_name: str = Field(default="OpenSource Mentor AI")
-    cors_origins: str = Field(default="http://localhost:3000")
+    @field_validator("openai_api_key", "github_token", "openai_model")
+    @classmethod
+    def _no_newlines(cls, value: str, info) -> str:
+        return no_control_lines(value, info.field_name)
 
-    # Database
-    database_url: str = Field(
-        default="postgresql+psycopg://osma:osma@localhost:5432/osma"
-    )
+    @field_validator("openai_base_url")
+    @classmethod
+    def _base_url(cls, value: str) -> str:
+        return validate_llm_base_url(value)
 
-    # Supabase
-    supabase_url: str = Field(default="")
-    supabase_anon_key: str = Field(default="")
-    supabase_service_role_key: str = Field(default="")
-    supabase_jwt_secret: str = Field(default="")
-
-    # LLM provider: "anthropic" | "together" | "openai"
-    # Use "together" to run the fine-tuned OSMA Mentor model.
-    llm_provider: str = Field(default="anthropic")
-
-    # Anthropic
-    anthropic_api_key: str = Field(default="")
-    anthropic_model: str = Field(default="claude-3-5-sonnet-latest")
-
-    # Together.ai (hosted open-source models + fine-tuning)
-    together_api_key: str = Field(default="")
-    # Inference model: set this to your fine-tuned model id after training,
-    # e.g. "yourname/Meta-Llama-3.1-8B-Instruct-osma-mentor-xxxx".
-    together_model: str = Field(default="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo")
-    # Base model used as the starting point for fine-tuning.
-    together_base_model: str = Field(
-        default="meta-llama/Meta-Llama-3.1-8B-Instruct-Reference"
-    )
-
-    # OpenAI (optional: teacher model for distillation, or OpenAI inference)
-    openai_api_key: str = Field(default="")
-    openai_model: str = Field(default="gpt-4o-mini")
-
-    # GitHub
-    github_client_id: str = Field(default="")
-    github_client_secret: str = Field(default="")
-    github_fallback_token: str = Field(default="")
-
-    # Qdrant
-    qdrant_url: str = Field(default="http://localhost:6333")
-    qdrant_api_key: str = Field(default="")
-    qdrant_collection: str = Field(default="osma_repo_chunks")
-
-    # Embeddings
-    embedding_provider: str = Field(default="fastembed")
-    embedding_model: str = Field(default="BAAI/bge-small-en-v1.5")
-    embedding_dim: int = Field(default=384)
-
-    # Security
-    token_encryption_key: str = Field(default="")
-
-    # Background queue (optional). When unset, ingestion runs in-process via
-    # FastAPI BackgroundTasks instead of a durable Arq/Redis worker.
-    redis_url: str = Field(default="")
+    @field_validator("cors_origins")
+    @classmethod
+    def _cors(cls, value: str) -> str:
+        origins = [item.strip() for item in value.split(",") if item.strip()]
+        if not origins:
+            raise ValueError("CORS_ORIGINS must list at least one origin")
+        if any(origin == "*" for origin in origins):
+            raise ValueError("Wildcard CORS is not allowed")
+        for origin in origins:
+            if any(char in origin for char in "\r\n\x00") or not origin.startswith(
+                ("http://", "https://")
+            ):
+                raise ValueError("CORS origin must be an http(s) origin")
+        return ",".join(origins)
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        return [item.strip() for item in self.cors_origins.split(",") if item.strip()]
 
     @property
-    def is_production(self) -> bool:
-        return self.app_env.lower() == "production"
+    def llm_configured(self) -> bool:
+        return bool(self.openai_api_key)
 
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
-
-settings = get_settings()
