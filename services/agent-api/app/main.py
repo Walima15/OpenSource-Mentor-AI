@@ -79,7 +79,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="OSMA",
         summary="Open Source Mentor for Bitcoin contributors",
-        version="1.0.0",
+        version="0.1.0",
         lifespan=lifespan,
     )
     app.add_middleware(SecurityHeadersMiddleware)
