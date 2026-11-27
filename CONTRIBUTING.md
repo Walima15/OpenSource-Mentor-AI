@@ -11,33 +11,31 @@ OSMA does not open pull requests, push commits, fork repositories, or post revie
 Requirements: Python 3.11+, Node.js 22, and git. Docker is optional. Ollama is optional and only needed if you want a conversational model.
 
 ```bash
-cp .env.example .env
-make install
-make dev
+make start
 ```
+
+`make start` copies `.env.example` to `.env` when `.env` is missing, installs dependencies when they are missing, and starts both processes on loopback. Ctrl-C stops them.
 
 - Web: http://127.0.0.1:3000
 - API: http://127.0.0.1:8000 (interactive docs at http://127.0.0.1:8000/docs)
 
-`make dev` starts both processes and binds them to loopback. Ctrl-C stops them. `make api-dev` and `make web-dev` run one process each.
+`make setup` installs without starting. `make dev` starts both when dependencies are already installed. `make api-dev` and `make web-dev` run one process each. Docker is optional: `make up` copies `.env` when it is missing and runs `docker compose up --build`. `make down` stops that stack.
 
 Leave `OPENAI_API_KEY` empty. Chat stays in guide mode, which is the default and does not call a model. To try a local model, install [Ollama](https://ollama.com), run `ollama pull llama3.2`, and set `OPENAI_API_KEY` to any non-empty placeholder. The defaults already point at `http://127.0.0.1:11434/v1` and `llama3.2`. Ollama does not check that key. OSMA uses a non-empty key only as the switch that leaves guide mode.
 
 Cloud OpenAI is opt-in. Set `OPENAI_BASE_URL=https://api.openai.com/v1`, set `OPENAI_MODEL` to a cloud model such as `gpt-4o-mini`, and set `OPENAI_API_KEY` to a real key. Do not commit `.env`.
 
-`make dev` runs the API on the host, so `127.0.0.1:11434` is Ollama on the same machine. Inside Docker Compose, `127.0.0.1` is the API container. Compose still defaults to guide mode while the key is empty. Use `make dev` when you want the container-free path to a host Ollama.
+`make start` runs the API on the host, so `127.0.0.1:11434` is Ollama on the same machine. Inside Docker Compose, `127.0.0.1` is the API container. Compose still defaults to guide mode while the key is empty. To use host Ollama from Compose, set `OPENAI_BASE_URL=http://host.docker.internal:11434/v1` and a non-empty placeholder key, then `make up`.
 
 `GITHUB_TOKEN` is optional. Public read access is enough. Without it, GitHub's anonymous rate limit applies.
 
 ## Tests and linters
 
 ```bash
-make lint
-make test
-make build
+make check
 ```
 
-That runs:
+That runs `make lint`, `make test`, and `make build`:
 
 - API lint: `ruff check app tests` in `services/agent-api`
 - API tests: `pytest` in `services/agent-api` (no network, no API key)
@@ -55,6 +53,8 @@ cd apps/web && npm run lint
 ```
 
 The API tests script the language model and stub GitHub. Do not point tests at a live key or a live token.
+
+GitHub Actions (`.github/workflows/ci.yml`) runs these checks on pushes to `main` and on pull requests targeting `main`. The backend job installs `services/agent-api` and runs `ruff check app tests` and `pytest`. The frontend job runs `npm ci`, `npm run lint`, `npm test`, and `npm run build` in `apps/web`.
 
 ## Curriculum changes
 

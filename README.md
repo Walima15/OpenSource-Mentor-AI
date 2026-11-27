@@ -40,14 +40,19 @@ The web proxy only forwards to `localhost`, `127.0.0.1`, or the Compose hostname
 Requirements: Python 3.11+, Node.js 22, and git. Ollama is optional.
 
 ```bash
-cp .env.example .env
-make install
-make dev
+make start
 ```
 
-Guide mode works with the empty `OPENAI_API_KEY` from `.env.example`. Nothing else is required to use the curriculum and the tools.
+`make start` is the one-command local startup. It copies `.env.example` to `.env` when `.env` is missing, installs dependencies when they are missing, and starts the API and the web app. Guide mode works with the empty `OPENAI_API_KEY` from `.env.example`. Nothing else is required to use the curriculum and the tools.
 
-For a local conversational model, install Ollama and pull the default model, then set a placeholder key:
+- Web: http://127.0.0.1:3000
+- API: http://127.0.0.1:8000 (interactive docs at http://127.0.0.1:8000/docs)
+
+Ctrl-C stops both processes. `make setup` installs without starting. `make dev` starts both when dependencies are already installed. `make api-dev` and `make web-dev` run one process each.
+
+The API reads `.env` from the repository root.
+
+For a local conversational model, install Ollama and pull the default model, then set a placeholder key and run `make start` again:
 
 ```bash
 ollama pull llama3.2
@@ -56,37 +61,40 @@ ollama pull llama3.2
 # http://127.0.0.1:11434/v1 and llama3.2.
 ```
 
-Ollama does not check the key. OSMA treats any non-empty key as "call the model" and an empty key as guide mode. `make dev` runs on the host, so `127.0.0.1:11434` is Ollama on this computer.
+Ollama does not check the key. OSMA treats any non-empty key as "call the model" and an empty key as guide mode. `make start` runs on the host, so `127.0.0.1:11434` is Ollama on this computer.
 
 Cloud OpenAI is opt-in. In `.env`, set `OPENAI_BASE_URL=https://api.openai.com/v1`, set `OPENAI_MODEL` to a cloud model such as `gpt-4o-mini`, and set `OPENAI_API_KEY` to a real key. Leave `GITHUB_TOKEN` empty unless you want a higher GitHub API rate limit. Do not commit `.env`.
-
-- Web: http://127.0.0.1:3000
-- API: http://127.0.0.1:8000 (interactive docs at http://127.0.0.1:8000/docs)
-
-`make dev` starts both processes. Ctrl-C stops them. You can also run `make api-dev` and `make web-dev` in two terminals.
-
-The API reads `.env` from the repository root.
 
 Check the install:
 
 ```bash
-make lint
-make test
-make build
+make check
 ```
+
+`make check` runs API lint (`ruff check app tests`), API tests (`pytest`), web lint, web tests, and the web production build. GitHub Actions runs the same checks on pushes to `main` and on pull requests targeting `main`.
 
 ## Run with Docker
 
 Requirements: Docker with Compose v2.
 
 ```bash
-cp .env.example .env
 make up
 ```
 
-`make up` is `docker compose up --build`. The site is http://127.0.0.1:3000 and the API is http://127.0.0.1:8000. Ports are bound to loopback. SQLite lives in the `osma-data` volume. With an empty key, the container stays in guide mode and does not call a model.
+`make up` is the one-command Compose startup. It copies `.env.example` to `.env` when `.env` is missing, then runs `docker compose up --build`. The site is http://127.0.0.1:3000 and the API is http://127.0.0.1:8000. Ports are bound to loopback. SQLite lives in the `osma-data` volume. With an empty key, the container stays in guide mode and does not call a model.
 
-Compose's default `OPENAI_BASE_URL` is still `http://127.0.0.1:11434/v1`. Inside the API container that address is the container itself, not Ollama on the host. Use `make dev` to talk to a host Ollama. To opt into cloud OpenAI from Compose, set `OPENAI_BASE_URL`, `OPENAI_MODEL`, and `OPENAI_API_KEY` in `.env` as above.
+Compose's default `OPENAI_BASE_URL` is `http://127.0.0.1:11434/v1`. Inside the API container that address is the container itself, not Ollama on the host. Leave the key empty for guide mode.
+
+To use Ollama on the host from Compose, install Ollama, run `ollama pull llama3.2`, and set these in `.env` before `make up`:
+
+```bash
+OPENAI_API_KEY=ollama
+OPENAI_BASE_URL=http://host.docker.internal:11434/v1
+```
+
+The key can be any non-empty placeholder. Ollama does not check it. Compose maps `host.docker.internal` to the host. `OPENAI_MODEL` already defaults to `llama3.2`. `make start` remains the path that talks to Ollama at `127.0.0.1:11434` without Docker.
+
+To opt into cloud OpenAI from Compose, set `OPENAI_BASE_URL`, `OPENAI_MODEL`, and `OPENAI_API_KEY` in `.env` as above.
 
 ```bash
 make down
@@ -120,7 +128,7 @@ The web package tests the proxy allowlist (`npm test` in `apps/web`).
 - Good-first-issue search depends on the labels projects actually use. Bitcoin Core often has few of them. Reviewing an existing pull request is the better first contribution, and the mentor says so.
 - Rate limits are in-memory and per process.
 - The web proxy will not forward to an arbitrary host. Local and Compose hostnames only.
-- From inside Docker Compose, `127.0.0.1:11434` is not Ollama on the host. Use `make dev` for host Ollama.
+- From inside Docker Compose, `127.0.0.1:11434` is not Ollama on the host. Set `OPENAI_BASE_URL=http://host.docker.internal:11434/v1` to use host Ollama, or use `make start`.
 
 ## Project docs
 
