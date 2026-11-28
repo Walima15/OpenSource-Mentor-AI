@@ -6,7 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
-Nothing yet beyond the v0.1.0 candidate below. The `v0.1.0` git tag and the GitHub Release have not been created.
+### Added
+
+- A local IDE at `/workspace` for BDK and rust-bitcoin. OSMA shallow-clones the repository outside its own source tree, with git hooks disabled. The page has a file tree, an editor, the project's contributing notes and review checklist, and the mentor beside the file.
+- Workspace tools that read and search the local clone. When a model is configured, it can propose a diff that is applied only if you accept it. Guide mode still explains the open file with no model.
+- Documented Ollama code model for that assistant: `qwen2.5-coder:1.5b`.
+
+The IDE does not run a shell, tests, `git commit`, `git push`, or open a pull request.
+
+Nothing else is queued for the v0.1.0 candidate below. The `v0.1.0` git tag and the GitHub Release have not been created.
 
 ## [0.1.0] - Unreleased
 

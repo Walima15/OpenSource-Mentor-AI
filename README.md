@@ -92,6 +92,24 @@ Check the install:
 make check
 ```
 
+## Workspace
+
+`/workspace` is a small IDE for two catalog repositories: BDK and rust-bitcoin. Choose one and OSMA runs a shallow `git clone` into `~/.osma/workspaces` (or `OSMA_WORKSPACE_ROOT`), which is outside this source tree. The clone sets `core.hooksPath` to `/dev/null`, so repository hooks do not run. The page shows the file tree, an editor, that project's contributing notes, and its review and test checklist.
+
+Guide mode still needs no API key. Ask it to explain the open file, or search the clone. It will not change a file by itself.
+
+A suggested edit needs a local model. Ollama ignores the key, so any non-empty `OPENAI_API_KEY` turns the model on. For the IDE, a small open code model is a better fit than the default chat model:
+
+```bash
+ollama pull qwen2.5-coder:1.5b
+```
+
+Set `OPENAI_MODEL=qwen2.5-coder:1.5b` in `.env` and leave `OPENAI_BASE_URL` on `http://127.0.0.1:11434/v1`. `qwen2.5-coder:3b` is the same family if the machine has the memory. The model may propose a diff. Nothing is written until you accept it, and the write stays in that local file.
+
+There is no terminal. OSMA does not run tests, `git commit`, `git push`, or open a pull request. Bitcoin Core and the other catalog projects stay on the learning and project pages; cloning them is not part of this IDE yet.
+
+`make start` is the path that has git on the host. Compose installs git in the API image and stores clones in the `osma-workspaces` volume.
+
 ## Walkthrough
 
 These frames are guide mode on a local machine: empty `OPENAI_API_KEY`, no cloud model. The curriculum and the project page do not need a key. The mentor reply is assembled from the local notes.

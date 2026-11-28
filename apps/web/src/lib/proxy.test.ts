@@ -10,6 +10,10 @@ test("allows mentor API paths", () => {
     safeAgentPath(["api", "v1", "curriculum", "lessons", "utxos"]),
     "api/v1/curriculum/lessons/utxos",
   );
+  assert.equal(
+    safeAgentPath(["api", "v1", "workspaces", "projects"]),
+    "api/v1/workspaces/projects",
+  );
 });
 
 test("rejects traversal and off-site paths", () => {

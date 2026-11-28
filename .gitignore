@@ -11,6 +11,7 @@ __pycache__/
 
 # Environment and local data
 .env
+.osma/
 .env.local
 .env*.local
 !.env.example

@@ -40,9 +40,19 @@ class AgentReply:
     mode: str = "guide"
 
 
-def guide_reply(message: str, tools: ToolRegistry, *, failed_llm: bool = False) -> AgentReply:
+def guide_reply(
+    message: str,
+    tools: ToolRegistry,
+    *,
+    failed_llm: bool = False,
+    open_path: str | None = None,
+) -> AgentReply:
     text = message.strip()
-    content, traces = _route(text, tools)
+    local = _local_workspace(text, tools, open_path)
+    if local is None:
+        content, traces = _route(text, tools)
+    else:
+        content, traces = local
     banner = _GUIDE_BANNER
     if failed_llm:
         banner = (
@@ -164,6 +174,27 @@ def _route(text: str, tools: ToolRegistry) -> tuple[str, list[dict]]:
     if "No lesson matched" in content or "No curriculum match" in content:
         return _help(), []
     return content, traces
+
+
+def _local_workspace(
+    text: str,
+    tools: ToolRegistry,
+    open_path: str | None,
+) -> tuple[str, list[dict]] | None:
+    from app.workspace.context import current_workspace_id
+
+    if not current_workspace_id():
+        return None
+    lowered = text.lower().strip()
+    if lowered.startswith("search "):
+        query = text.strip()[7:].strip()
+        return _call(tools, "search_workspace", {"query": query})
+    wants_file = open_path and (
+        "this file" in lowered or lowered in {"explain", "explain file"} or lowered.startswith("explain this")
+    )
+    if wants_file:
+        return _call(tools, "read_workspace_file", {"path": open_path})
+    return None
 
 
 def _call(tools: ToolRegistry, name: str, args: dict) -> tuple[str, list[dict]]:

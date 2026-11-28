@@ -108,3 +108,41 @@ export type Conversation = {
   title: string;
   updated_at: string;
 };
+
+export type IdeProject = {
+  slug: string;
+  name: string;
+  owner: string;
+  repo: string;
+  language: string;
+  summary: string;
+};
+
+export type WorkspaceInfo = {
+  id: string;
+  slug: string;
+  name: string;
+  owner: string;
+  repo: string;
+  summary: string;
+  language: string;
+  contributing: string[];
+  test_steps: string[];
+  checklist: string[];
+  recommended_model: string;
+  reused?: boolean;
+};
+
+export type TreeEntry = { path: string; type: "file" | "dir" };
+
+export type WorkspaceFile = {
+  path: string;
+  binary: boolean;
+  truncated: boolean;
+  text: string;
+  sha256: string;
+};
+
+export type PendingEdit = { id: string; path: string; diff: string; status: string };
+
+export type SearchHit = { path: string; line: number; text: string };

@@ -12,6 +12,7 @@ from starlette.responses import JSONResponse
 
 from app.agent.mentor import MentorAgent
 from app.api.routes import router
+from app.api.workspace import router as workspace_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.rate_limit import RateLimiter
@@ -91,6 +92,7 @@ def create_app() -> FastAPI:
         allow_headers=["Content-Type", "Accept"],
     )
     app.include_router(router)
+    app.include_router(workspace_router)
     return app
 
 

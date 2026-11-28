@@ -19,6 +19,7 @@ os.environ["CORS_ORIGINS"] = "http://localhost:3000"
 os.environ["RATE_LIMIT_CHAT_PER_MINUTE"] = "1000"
 os.environ["RATE_LIMIT_READ_PER_MINUTE"] = "1000"
 os.environ["LOG_LEVEL"] = "WARNING"
+os.environ["OSMA_WORKSPACE_ROOT"] = str(_DIR / "workspaces")
 
 import pytest
 from fastapi.testclient import TestClient
