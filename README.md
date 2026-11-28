@@ -18,6 +18,27 @@ OSMA teaches the protocol and the review culture, then helps you set up a reposi
 
 With a non-empty `OPENAI_API_KEY`, a tool-calling model writes the reply. The default server is Ollama on loopback. Set `OPENAI_BASE_URL=https://api.openai.com/v1` and a cloud model only if you want that traffic to leave the machine. Without a key, **guide mode** still calls the same tools and assembles the answer from the curriculum and GitHub. That is enough to learn and to try the app. Details of what stays local are in [docs/PRIVACY.md](docs/PRIVACY.md).
 
+## Roadmap
+
+v0.1.0 is prepared and not tagged. There is no telemetry, so this README does not report installs, learners, or pull requests. Numbers in the table are **targets**. The milestone plan, including what is already in the tree, is in [docs/ROADMAP.md](docs/ROADMAP.md). Release notes are in [docs/releases/v0.1.0.md](docs/releases/v0.1.0.md).
+
+### In the v0.1.0 candidate
+
+- Guide mode when `OPENAI_API_KEY` is empty, with local Ollama as the default endpoint if you later opt into a model
+- Three English paths (Bitcoin fundamentals, Lightning, contribution craft) and quizzes graded on the local API
+- Setup and review notes for ten Bitcoin and Lightning projects
+- GitHub lookups for issues, files, and pull requests. OSMA does not open pull requests
+- `make start` and `make up`, plus GitHub Actions for the API and the web app
+
+### Targets after v0.1.0
+
+| Target | What “done” means |
+| --- | --- |
+| Developers onboarded | **Target:** 40 people finish one learning path in a pilot. No pilot has been run. |
+| Pull requests mentored | **Target:** 15 pull requests that learners open themselves on Bitcoin or freedom-tech repositories. OSMA will not open them. |
+| Local installs | **Target:** 100 installs that people choose to report. The app will not count them. |
+| Languages | **Target:** English plus 3 languages reviewed by native speakers, including African languages. v0.1.0 is English only. |
+
 ## Architecture
 
 ```
@@ -70,6 +91,20 @@ Check the install:
 ```bash
 make check
 ```
+
+## Walkthrough
+
+These frames are guide mode on a local machine: empty `OPENAI_API_KEY`, no cloud model. The curriculum and the project page do not need a key. The mentor reply is assembled from the local notes.
+
+![OSMA home page](docs/assets/home.png)
+
+![Curriculum paths](docs/assets/curriculum.png)
+
+![UTXO lesson and quiz](docs/assets/lesson-utxo.png)
+
+![Bitcoin Core project guide](docs/assets/project-bitcoin-core.png)
+
+![Guide mode answer for UTXOs](docs/assets/guide-mode-utxo.png)
 
 `make check` runs API lint (`ruff check app tests`), API tests (`pytest`), web lint, web tests, and the web production build. GitHub Actions runs the same checks on pushes to `main` and on pull requests targeting `main`.
 
@@ -132,6 +167,9 @@ The web package tests the proxy allowlist (`npm test` in `apps/web`).
 
 ## Project docs
 
+- [Roadmap](docs/ROADMAP.md) — shipped scope and labelled targets
+- [Changelog](CHANGELOG.md) — v0.1.0 notes, tag not created
+- [v0.1.0 release notes](docs/releases/v0.1.0.md)
 - [Contributing](CONTRIBUTING.md) — local setup, tests, and how to propose curriculum or catalog changes
 - [Security](SECURITY.md) — private vulnerability reports, no accounts, localhost database and API
 - [Privacy](docs/PRIVACY.md) — what stays on the machine, and what leaves if you opt in
