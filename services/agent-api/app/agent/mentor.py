@@ -31,15 +31,18 @@ class MentorAgent:
         *,
         system_prompt: str | None = None,
         open_path: str | None = None,
+        history_messages: int = 12,
+        history_chars: int = 8_000,
     ) -> AgentReply:
         if self.llm is None or not self.llm.configured:
             return guide_reply(user_message, self.tools, open_path=open_path)
         messages: list[dict] = [{"role": "system", "content": system_prompt or SYSTEM_PROMPT}]
-        for item in history[-12:]:
+        window = history[-history_messages:] if history_messages > 0 else []
+        for item in window:
             role = item.get("role")
             content = item.get("content")
             if role in {"user", "assistant"} and isinstance(content, str) and content.strip():
-                messages.append({"role": role, "content": content[:8_000]})
+                messages.append({"role": role, "content": content[:history_chars]})
         messages.append({"role": "user", "content": user_message})
         traces: list[dict] = []
         seen: set[str] = set()

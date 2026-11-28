@@ -189,6 +189,8 @@ def _local_workspace(
     if lowered.startswith("search "):
         query = text.strip()[7:].strip()
         return _call(tools, "search_workspace", {"query": query})
+    if _wants_orientation(lowered):
+        return _call(tools, "workspace_orientation", {})
     wants_file = open_path and (
         "this file" in lowered or lowered in {"explain", "explain file"} or lowered.startswith("explain this")
     )
@@ -203,6 +205,23 @@ def _call(tools: ToolRegistry, name: str, args: dict) -> tuple[str, list[dict]]:
     if not result["ok"]:
         return f"**{result['error']}**", [trace]
     return render(name, result["data"]), [trace]
+
+
+def _wants_orientation(lowered: str) -> bool:
+    phrases = (
+        "how do i contribute",
+        "how should i contribute",
+        "contributing",
+        "commit message",
+        "review culture",
+        "where do i start",
+        "where should i start",
+        "how do i build",
+        "how do i test",
+        "good first",
+        "first issue",
+    )
+    return any(phrase in lowered for phrase in phrases)
 
 
 def _wants_review(lowered: str) -> bool:

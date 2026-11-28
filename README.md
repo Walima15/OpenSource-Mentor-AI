@@ -94,7 +94,7 @@ make check
 
 ## Workspace
 
-`/workspace` is a small IDE for two catalog repositories: BDK and rust-bitcoin. Choose one and OSMA runs a shallow `git clone` into `~/.osma/workspaces` (or `OSMA_WORKSPACE_ROOT`), which is outside this source tree. The clone sets `core.hooksPath` to `/dev/null`, so repository hooks do not run. The page shows the file tree, an editor, that project's contributing notes, and its review and test checklist.
+`/workspace` is a local IDE for BDK, rust-bitcoin, Bitcoin Core, and LDK. Choose one and OSMA runs a shallow `git clone` into `~/.osma/workspaces` (or `OSMA_WORKSPACE_ROOT`), which is outside this source tree. The clone sets `core.hooksPath` to `/dev/null`, so repository hooks do not run. Bitcoin Core is also a blobless sparse clone of `src`, `doc`, `test/functional`, `ci`, and `.github`. The depends tree and the rest of the history stay out, because a full tree is large and slow. The page shows the file tree, an editor, that project's contributing notes, build and test commands as text, and its review checklist. Project and lesson pages are linked when OSMA has them.
 
 Guide mode still needs no API key. Ask it to explain the open file, or search the clone. It will not change a file by itself.
 
@@ -106,7 +106,7 @@ ollama pull qwen2.5-coder:1.5b
 
 Set `OPENAI_MODEL=qwen2.5-coder:1.5b` in `.env` and leave `OPENAI_BASE_URL` on `http://127.0.0.1:11434/v1`. `qwen2.5-coder:3b` is the same family if the machine has the memory. The model may propose a diff. Nothing is written until you accept it, and the write stays in that local file.
 
-There is no terminal. OSMA does not run tests, `git commit`, `git push`, or open a pull request. Bitcoin Core and the other catalog projects stay on the learning and project pages; cloning them is not part of this IDE yet.
+There is no terminal. OSMA does not run tests, `git commit`, `git push`, or open a pull request. A 1.5B or 3B code model only receives a short file excerpt (4,000 characters for Bitcoin Core, 6,000 for LDK) and a few recent chat turns, so the contributing rules are not pushed out of the prompt. The editor itself can still show a longer file.
 
 `make start` is the path that has git on the host. Compose installs git in the API image and stores clones in the `osma-workspaces` volume.
 

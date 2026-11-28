@@ -45,13 +45,24 @@ def workspace_prompt(meta: dict) -> str:
         WORKSPACE_RULES,
         "",
         f"Open repository: {meta['owner']}/{meta['repo']} ({meta['name']}).",
+        f"Language: {meta.get('language') or 'unknown'}.",
         "Contributing notes:",
     ]
     lines.extend(f"- {item}" for item in meta.get("contributing") or [])
     lines.append("Review checklist:")
     lines.extend(f"- {item}" for item in meta.get("checklist") or [])
+    lines.append("Build commands, shown as text. You cannot run them:")
+    lines.extend(f"- {item}" for item in meta.get("setup_steps") or [])
     lines.append("Documented test commands (you cannot run them):")
     lines.extend(f"- {item}" for item in meta.get("test_steps") or [])
+    if meta.get("issue_hint"):
+        lines.append(str(meta["issue_hint"]))
+    if meta.get("context_note"):
+        lines.append(str(meta["context_note"]))
+    links = meta.get("learn_links") or []
+    if links:
+        lines.append("Related OSMA pages:")
+        lines.extend(f"- {item['label']}: {item['href']}" for item in links)
     if meta.get("recommended_model"):
         lines.append(
             f"If a code model is wanted, the documented small Ollama model is {meta['recommended_model']}."

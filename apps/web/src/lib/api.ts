@@ -116,7 +116,10 @@ export type IdeProject = {
   repo: string;
   language: string;
   summary: string;
+  clone_note?: string;
 };
+
+export type LearnLink = { href: string; label: string };
 
 export type WorkspaceInfo = {
   id: string;
@@ -127,9 +130,14 @@ export type WorkspaceInfo = {
   summary: string;
   language: string;
   contributing: string[];
+  setup_steps?: string[];
   test_steps: string[];
   checklist: string[];
   recommended_model: string;
+  clone_note?: string;
+  issue_hint?: string;
+  learn_links?: LearnLink[];
+  file_chars?: number;
   reused?: boolean;
 };
 

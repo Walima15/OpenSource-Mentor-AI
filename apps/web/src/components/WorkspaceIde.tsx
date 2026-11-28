@@ -320,10 +320,26 @@ export function WorkspaceIde({ workspaceId }: { workspaceId: string }) {
       <aside className="flex min-h-0 flex-col">
         <div className="max-h-[40%] space-y-3 overflow-y-auto border-b border-line px-3 py-3 text-sm">
           <p className="text-xs text-muted">
-            No terminal. Tests stay listed here so you can run them yourself.             Suggested model: <code className="whitespace-nowrap">{info?.recommended_model}</code>
+            No terminal. Build and test commands stay here as text. Suggested model:{" "}
+            <code className="whitespace-nowrap">{info?.recommended_model}</code>
+            {info?.file_chars && info.file_chars < 12_000
+              ? ` File excerpts sent to that model are capped at ${info.file_chars} characters.`
+              : ""}
           </p>
+          {info?.clone_note ? <p className="text-xs text-muted">{info.clone_note}</p> : null}
+          {info?.learn_links?.length ? (
+            <p className="text-xs">
+              {info.learn_links.map((link) => (
+                <Link key={link.href} href={link.href} className="mr-3 text-rust underline">
+                  {link.label}
+                </Link>
+              ))}
+            </p>
+          ) : null}
           <RuleList title="Contributing" items={info?.contributing || []} />
+          {info?.issue_hint ? <p className="text-xs text-muted">{info.issue_hint}</p> : null}
           <RuleList title="Review and test checklist" items={info?.checklist || []} />
+          <RuleList title="Build commands" items={info?.setup_steps || []} code />
           <RuleList title="Test commands" items={info?.test_steps || []} code />
         </div>
         <div className="flex min-h-0 flex-1 flex-col">
@@ -331,14 +347,23 @@ export function WorkspaceIde({ workspaceId }: { workspaceId: string }) {
             {messages.length === 0 ? (
               <div>
                 <h2 className="font-serif text-xl">Ask about this repo</h2>
-                <button
-                  type="button"
-                  disabled={!path}
-                  onClick={() => void send("Explain this file")}
-                  className="mt-3 rounded-full border border-line bg-card px-3 py-1.5 text-sm disabled:opacity-40"
-                >
-                  Explain this file
-                </button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={!path}
+                    onClick={() => void send("Explain this file")}
+                    className="rounded-full border border-line bg-card px-3 py-1.5 text-sm disabled:opacity-40"
+                  >
+                    Explain this file
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void send("How do I contribute?")}
+                    className="rounded-full border border-line bg-card px-3 py-1.5 text-sm"
+                  >
+                    How do I contribute?
+                  </button>
+                </div>
               </div>
             ) : null}
             {messages.map((message) => (

@@ -248,6 +248,14 @@ def chat(body: ChatRequest, request: Request, db: Session = Depends(get_db)) -> 
     elif body.open_path:
         db.rollback()
         raise HTTPException(status_code=400, detail="open_path requires a workspace")
+    limits: dict = {}
+    if body.workspace_id and prompt is not None:
+        workspace = get_workspace(body.workspace_id)
+        if int(workspace.get("history_messages") or 12) != 12:
+            limits = {
+                "history_messages": int(workspace["history_messages"]),
+                "history_chars": int(workspace["history_chars"]),
+            }
     token = set_workspace_id(body.workspace_id)
     try:
         reply = request.app.state.agent.reply(
@@ -255,6 +263,7 @@ def chat(body: ChatRequest, request: Request, db: Session = Depends(get_db)) -> 
             body.message,
             system_prompt=prompt,
             open_path=body.open_path,
+            **limits,
         )
     except Exception:
         db.rollback()
