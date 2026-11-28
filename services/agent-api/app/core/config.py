@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     rate_limit_chat_per_minute: int = Field(default=20, ge=1, le=10_000)
     rate_limit_read_per_minute: int = Field(default=120, ge=1, le=10_000)
     max_tool_rounds: int = Field(default=4, ge=1, le=8)
+    # Empty means ~/.osma/workspaces, which is outside this repository.
+    osma_workspace_root: str = ""
 
     model_config = SettingsConfigDict(
         env_file=_env_file(),

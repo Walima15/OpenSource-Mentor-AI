@@ -250,6 +250,45 @@ def _review(data: dict) -> str:
     return "\n".join(lines)
 
 
+def _local_file(data: dict) -> str:
+    lines = [f"## `{data.get('path')}`", ""]
+    if data.get("binary"):
+        lines.append("This file is binary, so the IDE will not show it as text.")
+        return "\n".join(lines)
+    if data.get("truncated"):
+        lines.append("The file is truncated for this reply.")
+        lines.append("")
+    text = (data.get("text") or "").strip()
+    lines.extend(["```", text[:6_000], "```"])
+    lines.append("")
+    lines.append("Guide mode is reading the local clone. A model can propose a diff; it will not change the file until you accept it.")
+    return "\n".join(lines)
+
+
+def _local_search(data: dict) -> str:
+    lines = [f"## Search: {data.get('query')}", ""]
+    matches = data.get("matches") or []
+    if not matches:
+        lines.append("No matches in the local clone.")
+        return "\n".join(lines)
+    for item in matches:
+        lines.append(f"- `{item.get('path')}:{item.get('line')}` {item.get('text')}")
+    return "\n".join(lines)
+
+
+def _proposed_edit(data: dict) -> str:
+    lines = [
+        f"## Proposed edit to `{data.get('path')}`",
+        "",
+        "This diff is not applied. Accept or reject it in the editor.",
+        "",
+        "```diff",
+        (data.get("diff") or "").strip()[:12_000],
+        "```",
+    ]
+    return "\n".join(lines)
+
+
 _RENDERERS = {
     "list_learning_paths": _paths,
     "get_lesson": _lesson,
@@ -264,4 +303,7 @@ _RENDERERS = {
     "plan_contribution": _plan,
     "review_pull_request": _review,
     "review_diff": _review,
+    "read_workspace_file": _local_file,
+    "search_workspace": _local_search,
+    "propose_workspace_edit": _proposed_edit,
 }

@@ -7,11 +7,11 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends ca-certificates curl git \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 10001 osma \
-    && mkdir -p /data \
-    && chown osma:osma /data
+    && mkdir -p /data /workspaces \
+    && chown osma:osma /data /workspaces
 
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt

@@ -12,12 +12,16 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.agent.prompts import workspace_prompt
 from app.content.loader import LESSONS, PATHS, PROJECTS, lessons_for_path, public_lesson
 from app.core.rate_limit import client_ip
+from app.core.security import ToolError, validate_git_path
 from app.db.models import Conversation, Message
 from app.tools.curriculum import grade_quiz
 from app.tools.github_tools import find_good_first_issues
 from app.tools.projects import get_project_guide, list_projects
+from app.workspace.context import reset_workspace_id, set_workspace_id
+from app.workspace.store import get_workspace
 
 router = APIRouter()
 _UUID = re.compile(
@@ -39,6 +43,8 @@ class ChatRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     message: str = Field(min_length=1, max_length=8_000)
     conversation_id: str | None = None
+    workspace_id: str | None = None
+    open_path: str | None = None
 
     @field_validator("message")
     @classmethod
@@ -48,14 +54,24 @@ class ChatRequest(BaseModel):
             raise ValueError("message is empty")
         return cleaned
 
-    @field_validator("conversation_id")
+    @field_validator("conversation_id", "workspace_id")
     @classmethod
-    def _conversation(cls, value: str | None) -> str | None:
+    def _uuid(cls, value: str | None) -> str | None:
         if value is None:
             return None
         if not _UUID.fullmatch(value):
-            raise ValueError("conversation_id must be a UUID")
+            raise ValueError("id must be a UUID")
         return value
+
+    @field_validator("open_path")
+    @classmethod
+    def _open_path(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        try:
+            return validate_git_path(value)
+        except ToolError as exc:
+            raise ValueError(exc.message) from None
 
 
 class QuizRequest(BaseModel):
@@ -221,11 +237,30 @@ def chat(body: ChatRequest, request: Request, db: Session = Depends(get_db)) -> 
             created_at=now,
         )
     )
+    prompt = None
+    if body.workspace_id:
+        try:
+            prompt = workspace_prompt(get_workspace(body.workspace_id))
+        except ToolError as exc:
+            db.rollback()
+            status_code = 404 if exc.message == "Unknown workspace" else 400
+            raise HTTPException(status_code=status_code, detail=exc.message) from None
+    elif body.open_path:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="open_path requires a workspace")
+    token = set_workspace_id(body.workspace_id)
     try:
-        reply = request.app.state.agent.reply(history, body.message)
+        reply = request.app.state.agent.reply(
+            history,
+            body.message,
+            system_prompt=prompt,
+            open_path=body.open_path,
+        )
     except Exception:
         db.rollback()
         raise HTTPException(status_code=500, detail="The mentor could not answer that message") from None
+    finally:
+        reset_workspace_id(token)
     assistant = Message(
         id=str(uuid4()),
         conversation_id=conversation.id,

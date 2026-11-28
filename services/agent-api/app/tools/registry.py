@@ -24,6 +24,7 @@ from app.tools.github_tools import (
     review_pull_request,
 )
 from app.tools.projects import get_project_guide, list_projects
+from app.tools.workspace_tools import propose_workspace_edit, read_workspace_file, search_workspace
 
 logger = get_logger(__name__)
 
@@ -215,6 +216,33 @@ def build_registry(github: GitHubClient) -> ToolRegistry:
                 ),
                 _schema({"diff": string, "project": string}, ["diff"]),
                 review_diff,
+            ),
+            Tool(
+                "read_workspace_file",
+                (
+                    "Read one text file from the local workspace clone. "
+                    "Use this instead of the GitHub file tool while a workspace is open. "
+                    "Does nothing when no workspace is open."
+                ),
+                _schema({"path": string}, ["path"]),
+                read_workspace_file,
+            ),
+            Tool(
+                "search_workspace",
+                "Search the local workspace clone for a short literal string. Does not run a shell.",
+                _schema({"query": string}, ["query"]),
+                search_workspace,
+            ),
+            Tool(
+                "propose_workspace_edit",
+                (
+                    "Propose a snippet replacement in a local workspace file. "
+                    "old must be an exact excerpt that appears once. new is the replacement. "
+                    "The file is not modified. The human accepts or rejects the diff. "
+                    "Never use this to commit, push, or open a pull request."
+                ),
+                _schema({"path": string, "old": string, "new": string}, ["path", "old", "new"]),
+                propose_workspace_edit,
             ),
         ]
     )

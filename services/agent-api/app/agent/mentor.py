@@ -24,10 +24,17 @@ class MentorAgent:
         self.tools = tools
         self.max_rounds = max_rounds
 
-    def reply(self, history: list[dict], user_message: str) -> AgentReply:
+    def reply(
+        self,
+        history: list[dict],
+        user_message: str,
+        *,
+        system_prompt: str | None = None,
+        open_path: str | None = None,
+    ) -> AgentReply:
         if self.llm is None or not self.llm.configured:
-            return guide_reply(user_message, self.tools)
-        messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
+            return guide_reply(user_message, self.tools, open_path=open_path)
+        messages: list[dict] = [{"role": "system", "content": system_prompt or SYSTEM_PROMPT}]
         for item in history[-12:]:
             role = item.get("role")
             content = item.get("content")

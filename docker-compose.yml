@@ -20,10 +20,12 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-llama3.2}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      OSMA_WORKSPACE_ROOT: /workspaces
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - osma-data:/data
+      - osma-workspaces:/workspaces
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
       interval: 10s
@@ -47,3 +49,4 @@ services:
 
 volumes:
   osma-data:
+  osma-workspaces:
