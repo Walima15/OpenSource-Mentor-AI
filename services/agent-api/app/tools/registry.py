@@ -24,7 +24,12 @@ from app.tools.github_tools import (
     review_pull_request,
 )
 from app.tools.projects import get_project_guide, list_projects
-from app.tools.workspace_tools import propose_workspace_edit, read_workspace_file, search_workspace
+from app.tools.workspace_tools import (
+    propose_workspace_edit,
+    read_workspace_file,
+    search_workspace,
+    workspace_orientation,
+)
 
 logger = get_logger(__name__)
 
@@ -216,6 +221,16 @@ def build_registry(github: GitHubClient) -> ToolRegistry:
                 ),
                 _schema({"diff": string, "project": string}, ["diff"]),
                 review_diff,
+            ),
+            Tool(
+                "workspace_orientation",
+                (
+                    "Return the open workspace's language, build and test commands, "
+                    "contributing rules, and where to look for a first issue. "
+                    "Commands are text only. Nothing is executed."
+                ),
+                _schema({}, []),
+                lambda args: workspace_orientation(args),
             ),
             Tool(
                 "read_workspace_file",

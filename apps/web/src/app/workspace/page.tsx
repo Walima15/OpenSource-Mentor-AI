@@ -46,9 +46,9 @@ export default function WorkspacePage() {
       <p className="text-sm uppercase tracking-[0.18em] text-rust">Local IDE</p>
       <h1 className="mt-3 font-serif text-5xl tracking-tight">Work in the repository</h1>
       <p className="mt-4 max-w-2xl text-muted">
-        Pick BDK or rust-bitcoin. OSMA clones a shallow copy onto this computer, outside its own source tree, with git
-        hooks turned off. You can read and edit files here. OSMA will not run the project, commit, push, or open a
-        pull request.
+        Pick BDK, rust-bitcoin, Bitcoin Core, or LDK. OSMA clones a shallow copy onto this computer, outside its own
+        source tree, with git hooks turned off. Bitcoin Core is a sparse clone of the source, docs, and functional
+        tests. You can read and edit files here. OSMA will not run the project, commit, push, or open a pull request.
       </p>
       <p className="mt-3 max-w-2xl text-sm text-muted">
         Guide mode needs no API key. For a suggested diff, run{" "}
@@ -65,6 +65,7 @@ export default function WorkspacePage() {
             </p>
             <h2 className="mt-1 font-serif text-3xl">{project.name}</h2>
             <p className="mt-2 text-sm text-muted">{project.summary}</p>
+            {project.clone_note ? <p className="mt-2 text-sm text-muted">{project.clone_note}</p> : null}
             <button
               type="button"
               disabled={busy !== null}

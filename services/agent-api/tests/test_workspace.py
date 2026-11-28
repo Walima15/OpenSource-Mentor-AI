@@ -9,11 +9,13 @@ from pathlib import Path
 
 import pytest
 
+from app.agent.fallback import guide_reply
 from app.agent.mentor import MentorAgent
 from app.agent.prompts import workspace_prompt
 from app.core.security import ToolError
 from app.llm.client import LlmResult, ToolCall
-from app.tools.workspace_tools import propose_workspace_edit
+from app.tools.registry import build_registry
+from app.tools.workspace_tools import propose_workspace_edit, read_workspace_file
 from app.workspace.context import reset_workspace_id, set_workspace_id
 from app.workspace.paths import assert_outside_source, source_roots
 from app.workspace.store import (
@@ -22,6 +24,7 @@ from app.workspace.store import (
     read_file,
     workspace_root,
 )
+from tests.fakes import FakeGitHub
 
 
 def _origin(path: Path) -> Path:
@@ -93,7 +96,7 @@ def test_symlink_and_escape_are_refused(tmp_path: Path, client):
 
 
 def test_catalog_clone_rejects_other_projects_and_urls(client):
-    refused = client.post("/api/v1/workspaces", json={"project": "bitcoin-core"})
+    refused = client.post("/api/v1/workspaces", json={"project": "lnd"})
     assert refused.status_code == 400
     assert "BDK" in refused.json()["detail"]
     extra = client.post("/api/v1/workspaces", json={"project": "bdk", "url": "https://example.com/repo.git"})
@@ -101,9 +104,9 @@ def test_catalog_clone_rejects_other_projects_and_urls(client):
     listed = client.get("/api/v1/workspaces/projects")
     assert listed.status_code == 200
     slugs = [item["slug"] for item in listed.json()["projects"]]
-    assert slugs == ["bdk", "rust-bitcoin"]
+    assert slugs == ["bdk", "rust-bitcoin", "bitcoin-core", "ldk"]
     with pytest.raises(ToolError):
-        create_catalog_workspace("bitcoin-core")
+        create_catalog_workspace("lnd")
 
 
 def test_search_guide_mode_and_accept_reject(tmp_path: Path, client):
@@ -220,3 +223,118 @@ def test_model_propose_does_not_write_until_accept(tmp_path: Path, client):
     accepted = client.post(f"/api/v1/workspaces/{created['id']}/edits/{edit_id}/accept")
     assert accepted.status_code == 200
     assert read_file(created["id"], "README.md")["text"] == "hello reviewer\n"
+
+
+def _core_origin(path: Path) -> Path:
+    path.mkdir()
+    subprocess.check_call(["git", "init", str(path)])
+    subprocess.check_call(["git", "-C", str(path), "config", "user.email", "test@example.com"])
+    subprocess.check_call(["git", "-C", str(path), "config", "user.name", "Test"])
+    subprocess.check_call(["git", "-C", str(path), "config", "uploadpack.allowFilter", "true"])
+    (path / "README.md").write_text("Bitcoin Core\n", encoding="utf-8")
+    (path / "CONTRIBUTING.md").write_text("Read this before a pull request.\n", encoding="utf-8")
+    (path / "src").mkdir()
+    (path / "src" / "validation.cpp").write_text("int ConnectBlock() { return 1; }\n", encoding="utf-8")
+    (path / "doc").mkdir()
+    (path / "doc" / "build-unix.md").write_text("cmake -B build\n", encoding="utf-8")
+    (path / "depends").mkdir()
+    (path / "depends" / "packages.md").write_text("do not clone this tree\n", encoding="utf-8")
+    subprocess.check_call(["git", "-C", str(path), "add", "."])
+    subprocess.check_call(["git", "-C", str(path), "commit", "-m", "init"])
+    return path
+
+
+def test_bitcoin_core_sparse_clone_skips_depends_and_disables_hooks(tmp_path: Path):
+    origin = _core_origin(tmp_path / "origin")
+    from app.workspace.profiles import profile_for
+    from app.workspace.store import _clone
+
+    profile = profile_for("bitcoin-core")
+    assert profile is not None
+    created = _clone("bitcoin-core", str(origin), sparse=profile.sparse_dirs, timeout=60)
+    repo = _repo(created["id"])
+    hooks = subprocess.check_output(["git", "-C", str(repo), "config", "--get", "core.hooksPath"], text=True)
+    assert hooks.strip() == "/dev/null"
+    shallow = subprocess.check_output(
+        ["git", "-C", str(repo), "rev-parse", "--is-shallow-repository"],
+        text=True,
+    )
+    assert shallow.strip() == "true"
+    assert (repo / "src" / "validation.cpp").is_file()
+    assert (repo / "doc" / "build-unix.md").is_file()
+    assert not (repo / "depends" / "packages.md").exists()
+    listed = client_tree_paths(created["id"])
+    assert "src/validation.cpp" in listed
+    assert "depends/packages.md" not in listed
+
+
+def client_tree_paths(workspace_id: str) -> set[str]:
+    from app.workspace.store import tree
+
+    return {item["path"] for item in tree(workspace_id)["entries"]}
+
+
+def test_core_and_ldk_path_safety_and_guide_context(tmp_path: Path, client):
+    core = create_workspace_from_path("bitcoin-core", _origin(tmp_path / "core"))
+    ldk = create_workspace_from_path("ldk", _origin(tmp_path / "ldk"))
+    secret = tmp_path / "secret.txt"
+    secret.write_text("secret", encoding="utf-8")
+    for created in (core, ldk):
+        repo = _repo(created["id"])
+        (repo / "leak.txt").symlink_to(secret)
+        leaked = client.get(f"/api/v1/workspaces/{created['id']}/file", params={"path": "leak.txt"})
+        assert leaked.status_code == 400
+        escaped = client.get(
+            f"/api/v1/workspaces/{created['id']}/file",
+            params={"path": "../secret.txt"},
+        )
+        assert escaped.status_code == 400
+        git_meta = client.get(
+            f"/api/v1/workspaces/{created['id']}/file",
+            params={"path": ".git/config"},
+        )
+        assert git_meta.status_code == 400
+
+    core_prompt = workspace_prompt(core)
+    assert "C++" in core_prompt
+    assert "cmake -B build" in core_prompt
+    assert "wallet:" in core_prompt
+    assert "good first issue" in core_prompt
+    assert "4000 characters" in core_prompt
+    assert "/projects/bitcoin-core" in core_prompt
+    assert core["history_messages"] == 4
+    assert core["file_chars"] == 4_000
+
+    ldk_prompt = workspace_prompt(ldk)
+    assert "Rust" in ldk_prompt
+    assert "cargo test" in ldk_prompt
+    assert "BOLT" in ldk_prompt
+    assert "/learn/lightning" in ldk_prompt
+    assert ldk["history_messages"] == 6
+
+    tools = build_registry(FakeGitHub())
+    for created, needle in (
+        (core, "Concept ACK"),
+        (ldk, "channel state"),
+    ):
+        token = set_workspace_id(created["id"])
+        try:
+            reply = guide_reply("How do I contribute?", tools)
+        finally:
+            reset_workspace_id(token)
+        assert reply.mode == "guide"
+        assert needle.lower() in reply.content.lower()
+        assert "does not run" in reply.content.lower() or "OSMA does not run" in reply.content
+
+
+def test_bitcoin_core_file_excerpt_stays_short_for_a_small_model(tmp_path: Path):
+    created = create_workspace_from_path("bitcoin-core", _origin(tmp_path / "core"))
+    huge = "x" * 9_000
+    (_repo(created["id"]) / "src" / "wide.cpp").write_text(huge, encoding="utf-8")
+    token = set_workspace_id(created["id"])
+    try:
+        payload = read_workspace_file({"path": "src/wide.cpp"})
+    finally:
+        reset_workspace_id(token)
+    assert payload["truncated"] is True
+    assert len(payload["text"]) == 4_000

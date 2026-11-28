@@ -250,6 +250,41 @@ def _review(data: dict) -> str:
     return "\n".join(lines)
 
 
+def _orientation(data: dict) -> str:
+    lines = [
+        f"## Contributing to {data.get('name')}",
+        "",
+        f"Language: {data.get('language')}. Repository: {data.get('owner')}/{data.get('repo')}.",
+        "These commands are notes. OSMA does not run them.",
+        "",
+    ]
+    if data.get("clone_note"):
+        lines.extend([str(data["clone_note"]), ""])
+    if data.get("setup_steps"):
+        lines.append("### Build")
+        lines.extend(f"- `{item}`" for item in data["setup_steps"])
+        lines.append("")
+    if data.get("test_steps"):
+        lines.append("### Tests")
+        lines.extend(f"- `{item}`" for item in data["test_steps"])
+        lines.append("")
+    if data.get("contributing"):
+        lines.append("### Contributing")
+        lines.extend(f"- {item}" for item in data["contributing"])
+        lines.append("")
+    if data.get("issue_hint"):
+        lines.extend(["### First issues", "", str(data["issue_hint"]), ""])
+    if data.get("checklist"):
+        lines.append("### Review checklist")
+        lines.extend(f"- {item}" for item in data["checklist"])
+        lines.append("")
+    for link in data.get("learn_links") or []:
+        lines.append(f"- [{link.get('label')}]({link.get('href')})")
+    if data.get("context_note"):
+        lines.extend(["", str(data["context_note"])])
+    return "\n".join(lines)
+
+
 def _local_file(data: dict) -> str:
     lines = [f"## `{data.get('path')}`", ""]
     if data.get("binary"):
@@ -303,6 +338,7 @@ _RENDERERS = {
     "plan_contribution": _plan,
     "review_pull_request": _review,
     "review_diff": _review,
+    "workspace_orientation": _orientation,
     "read_workspace_file": _local_file,
     "search_workspace": _local_search,
     "propose_workspace_edit": _proposed_edit,
